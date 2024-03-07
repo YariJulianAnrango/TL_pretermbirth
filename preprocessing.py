@@ -21,7 +21,7 @@ class PrematureDataset(Dataset):
         sequences = []
         labels = []
         for unique_id in unique_ids:
-            id_values = self.ehg_sequence[self.ehg_sequence['rec_id'] == unique_id]["channel_1_filt_0.34_1_hz"].values
+            id_values = self.ehg_sequence[self.ehg_sequence['rec_id'] == unique_id][["channel_1_filt_0.34_1_hz", "channel_2_filt_0.34_1_hz", "channel_3_filt_0.34_1_hz"]].values
             id_label = np.unique(self.ehg_sequence[self.ehg_sequence['rec_id'] == unique_id]['premature'].values)
 
             sequences.append(id_values)

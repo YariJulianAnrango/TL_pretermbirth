@@ -35,12 +35,13 @@ class LSTM(nn.Module):
 df = pd.read_csv("./data/total_df.csv", index_col = 0)
 
 dataset = PrematureDataset("./data/total_df.csv")
+
 seed = 1
 batch_n = 5
 dataset_split = TrainValTest(dataset, 0.3, batch_n)
 train, val, test = dataset_split.train, dataset_split.val, dataset_split.test
 
-input_dim = 1
+input_dim = 3
 hidden_dim = 6
 target_size = 1
 layer_dim = 3
@@ -52,15 +53,14 @@ optimizer = optim.Adam(model.parameters(), lr=4.653012126454496*10**-5)
 
 train_loss = []
 val_loss_list = []
-for epoch in tqdm(range(100)):
+for epoch in tqdm(range(500)):
     model.train()
     total_loss = 0.0
     
     val_loss = 0
     for sequence, label in train:
         model.zero_grad()
-
-        output = model(sequence.unsqueeze(-1))
+        output = model(sequence)
         label_correct = label.unsqueeze(-1).float()
         loss = loss_function(output, label_correct)
         loss.backward()
@@ -72,7 +72,7 @@ for epoch in tqdm(range(100)):
     
     model.eval()
     for sequence, label in val:
-        output = model(sequence.unsqueeze(-1))
+        output = model(sequence)
         label_correct = label.unsqueeze(-1).float()
         vloss = loss_function(output, label_correct)
         
