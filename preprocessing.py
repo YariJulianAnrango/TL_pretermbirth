@@ -31,19 +31,21 @@ class PrematureDataset(Dataset):
         labels_tensor = torch.tensor(labels).squeeze()
 
         return sequences_tensor, labels_tensor
+    
+    
+def train_val_test_split(dataset, test_size):
+    trainval, test = torch.utils.data.random_split(dataset, [1-test_size, test_size])
+    train, val = torch.utils.data.random_split(trainval, [1-test_size, test_size])
+    return train, val, test
 
 
-class TrainValTest():
+
+class PrematureDataloader():
     def __init__(self, dataset, test_size, batch_size = None):
         self.dataset = dataset
         self.batch_size = batch_size
 
         self.train, self.val, self.test = self.get_dataloader(test_size)
-
-    def split(self, test_size):
-        trainval, test = torch.utils.data.random_split(self.dataset, [1-test_size, test_size])
-        train, val = torch.utils.data.random_split(trainval, [1-test_size, test_size])
-        return train, val, test
 
     def get_dataloader(self, test_size):
         train, val, test = self.split(test_size)

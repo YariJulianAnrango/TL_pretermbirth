@@ -1,8 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from preprocessing import TrainValTest, PrematureDataset
+from torch.utils.data import DataLoader
+
+from preprocessing import train_val_test_split, PrematureDataset
+
 import pandas as pd
+from sklearn import metrics
 
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -34,12 +38,17 @@ class LSTM(nn.Module):
 
 df = pd.read_csv("./data/total_df.csv", index_col = 0)
 
+seed = 1
+batch_size = 5
+
 dataset = PrematureDataset("./data/total_df.csv")
 
-seed = 1
-batch_n = 5
-dataset_split = TrainValTest(dataset, 0.3, batch_n)
-train, val, test = dataset_split.train, dataset_split.val, dataset_split.test
+train, val, test = train_val_test_split(dataset, 0.3)
+
+train_loader = DataLoader(train, batch_size, shuffle=True)
+val_loader = DataLoader(val ,batch_size, shuffle=True)
+# dataset_split = TrainValTest(dataset, 0.3, batch_n)
+# train, val, test = dataset_split.train, dataset_split.val, dataset_split.test
 
 input_dim = 3
 hidden_dim = 6
@@ -53,12 +62,12 @@ optimizer = optim.Adam(model.parameters(), lr=4.653012126454496*10**-5)
 
 train_loss = []
 val_loss_list = []
-for epoch in tqdm(range(500)):
+for epoch in tqdm(range(200)):
     model.train()
     total_loss = 0.0
     
     val_loss = 0
-    for sequence, label in train:
+    for sequence, label in train_loader:
         model.zero_grad()
         output = model(sequence)
         label_correct = label.unsqueeze(-1).float()
@@ -71,7 +80,7 @@ for epoch in tqdm(range(500)):
     train_loss.append(avg_loss)
     
     model.eval()
-    for sequence, label in val:
+    for sequence, label in val_loader:
         output = model(sequence)
         label_correct = label.unsqueeze(-1).float()
         vloss = loss_function(output, label_correct)
@@ -86,4 +95,25 @@ plt.plot(train_loss, label = 'train loss')
 plt.plot(val_loss_list, label = 'val loss')
 plt.legend()
 plt.show()
+
+# Evaluation
+model.eval()
+preds = []
+labels = []
+
+sig = nn.Sigmoid()
+for sequence, label in val_loader:
+    output = model(sequence)
+    pred = sig(output)
+    for p in pred:
+        preds.append(p.item())
+    for l in label:
+        labels.append(l.item())
+        
+fpr, tpr, thresholds = metrics.roc_curve(labels, preds, pos_label=1)
+print(metrics.auc(fpr, tpr))
+
+plt.plot(fpr, tpr)
+plt.show()
+
 
