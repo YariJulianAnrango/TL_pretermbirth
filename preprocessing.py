@@ -2,18 +2,48 @@ import torch
 import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset, DataLoader, Subset
+from sklearn.decomposition import PCA 
 
 class PrematureDataset(Dataset):
-    def __init__(self, csv_path):
+    def __init__(self, csv_path, n_components):
         self.ehg_sequence = pd.read_csv(csv_path)
 
-        self.X, self.y = self.convert_tensor()
+        self.X, self.y = self.convert_pca_tensor(n_components) 
+        # self.X, self.y = self.convert_tensor()
 
     def __len__(self):
         return len(self.y)
 
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
+    
+    def apply_pca(self, n_components):
+        pca = PCA(n_components = n_components)
+        pca.fit(self.ehg_sequence[["channel_1_filt_0.34_1_hz", "channel_2_filt_0.34_1_hz", "channel_3_filt_0.34_1_hz"]])
+        data_pca = pca.transform(self.ehg_sequence[["channel_1_filt_0.34_1_hz", "channel_2_filt_0.34_1_hz", "channel_3_filt_0.34_1_hz"]])
+        df_pca = pd.DataFrame(data_pca)
+        id_pca = pd.DataFrame({"id":self.ehg_sequence['rec_id'],
+                               "pca":df_pca.iloc[:,0],
+                               "label":self.ehg_sequence['premature']})
+        return id_pca
+    def convert_pca_tensor(self, n_components):
+        id_pca = self.apply_pca(n_components)
+        unique_ids = id_pca['id'].unique()
+
+        sequences = []
+        labels = []
+        for unique_id in unique_ids:
+            id_values = id_pca[id_pca['id'] == unique_id][['pca']].values
+            id_label = np.unique(id_pca[id_pca['id'] == unique_id]['label'].values)
+
+            sequences.append(id_values)
+            labels.append(id_label)
+
+        sequences_tensor = torch.tensor(sequences)
+        labels_tensor = torch.tensor(labels).squeeze()
+
+        return sequences_tensor, labels_tensor
+    
 
     def convert_tensor(self):
         unique_ids = self.ehg_sequence['rec_id'].unique()
@@ -55,4 +85,6 @@ class PrematureDataloader():
         test_batches = DataLoader(test, batch_size=self.batch_size, shuffle=True)
 
         return train_batches, val_batches, test_batches
+    
+    
 

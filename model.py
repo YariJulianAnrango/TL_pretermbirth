@@ -36,12 +36,10 @@ class LSTM(nn.Module):
 
         return logits
 
-df = pd.read_csv("./data/total_df.csv", index_col = 0)
-
 seed = 1
 batch_size = 5
 
-dataset = PrematureDataset("./data/total_df.csv")
+dataset = PrematureDataset("./data/total_df.csv", 1)
 
 train, val, test = train_val_test_split(dataset, 0.3)
 
@@ -50,7 +48,7 @@ val_loader = DataLoader(val ,batch_size, shuffle=True)
 # dataset_split = TrainValTest(dataset, 0.3, batch_n)
 # train, val, test = dataset_split.train, dataset_split.val, dataset_split.test
 
-input_dim = 3
+input_dim = 1
 hidden_dim = 6
 target_size = 1
 layer_dim = 3
@@ -93,7 +91,9 @@ for epoch in tqdm(range(200)):
 
 plt.plot(train_loss, label = 'train loss')
 plt.plot(val_loss_list, label = 'val loss')
+plt.title("Results of pca")
 plt.legend()
+plt.savefig("./figures/pca_results.png")
 plt.show()
 
 # Evaluation
@@ -111,9 +111,13 @@ for sequence, label in val_loader:
         labels.append(l.item())
         
 fpr, tpr, thresholds = metrics.roc_curve(labels, preds, pos_label=1)
-print(metrics.auc(fpr, tpr))
+auc = metrics.auc(fpr, tpr)
 
 plt.plot(fpr, tpr)
+plt.title(f"ROC plot with AUC {auc}")
+plt.xlabel("False positive rate")
+plt.ylabel("True positive rate")
+plt.savefig("./figures/pca_roc.png")
 plt.show()
 
 
