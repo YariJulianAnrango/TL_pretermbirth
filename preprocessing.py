@@ -1,7 +1,7 @@
 import torch
 import pandas as pd
 import numpy as np
-from torch.utils.data import Dataset, DataLoader, Subset
+from torch.utils.data import Dataset, DataLoader
 from sklearn.decomposition import PCA 
 
 class PrematureDataset(Dataset):
@@ -85,6 +85,25 @@ class PrematureDataloader():
         test_batches = DataLoader(test, batch_size=self.batch_size, shuffle=True)
 
         return train_batches, val_batches, test_batches
+
+class UCRDataset(Dataset):
+    def __init__(self, csv_path):
+        self.data = pd.read_csv(csv_path, sep = "\t", header = None)
+
+        self.X, self.y = self.convert_tensor()
+
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
     
-    
+    def convert_tensor(self):
+        y = self.data.iloc[:,0]
+        y_tensor = torch.tensor(y)
+
+        X_df = self.data.drop(0, axis = "columns")
+        X_tensor = torch.tensor(X_df.values)
+        
+        return X_tensor, y_tensor
 

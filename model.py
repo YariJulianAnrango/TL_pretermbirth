@@ -45,8 +45,6 @@ train, val, test = train_val_test_split(dataset, 0.3)
 
 train_loader = DataLoader(train, batch_size, shuffle=True)
 val_loader = DataLoader(val ,batch_size, shuffle=True)
-# dataset_split = TrainValTest(dataset, 0.3, batch_n)
-# train, val, test = dataset_split.train, dataset_split.val, dataset_split.test
 
 input_dim = 1
 hidden_dim = 6
