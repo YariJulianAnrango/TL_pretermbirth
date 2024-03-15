@@ -51,7 +51,6 @@ def train_and_evaluate(parameters, model):
     print(use_mps)
     loss_function = nn.BCEWithLogitsLoss()
     optimizer = getattr(optim, parameters['optimizer'])(model.parameters(), lr= parameters['learning_rate'])
-    # optimizer = optim.Adam(model.parameters(), lr=parameters["learning_rate"])
 
     if use_mps:
         model = model.to(device)
