@@ -24,6 +24,6 @@ study.optimize(objective, n_trials=30)
 
 best_trial = study.best_trial
 
-with open("parameter_testing.txt", "w") as f:
+with open("./hyperparameter_testing/parameter_testing_baseline.txt", "w") as f:
     for key, value in best_trial.params.items():
         f.write("{}: {} ".format(key, value))
