@@ -20,7 +20,7 @@ class LSTM(nn.Module):
         self.hidden_dim = hidden_dim
         self.target_size = target_size
         
-        self.lstm = nn.LSTM(self.input_dim, self.hidden_dim, num_layers=self.layer_dim, batch_first=True, bidirectional=True, dropout=0.4757946679534617)
+        self.lstm = nn.LSTM(self.input_dim, self.hidden_dim, num_layers=self.layer_dim, batch_first=True, bidirectional=True, dropout=0.38401083635229727)
         self.lin1 = nn.Linear(2*self.hidden_dim, self.target_size)
 
     def forward(self, x):
@@ -39,7 +39,7 @@ class LSTM(nn.Module):
 df = pd.read_csv("./data/total_df.csv", index_col = 0)
 
 seed = 1
-batch_size = 5
+batch_size = 13
 
 dataset = PrematureDataset("./data/total_df.csv")
 
@@ -51,14 +51,14 @@ val_loader = DataLoader(val ,batch_size, shuffle=True)
 # train, val, test = dataset_split.train, dataset_split.val, dataset_split.test
 
 input_dim = 3
-hidden_dim = 6
+hidden_dim = 15
 target_size = 1
-layer_dim = 3
+layer_dim = 5
 
 model = LSTM(input_dim, hidden_dim, target_size, layer_dim)
 
 loss_function = nn.BCEWithLogitsLoss()
-optimizer = optim.Adam(model.parameters(), lr=4.653012126454496*10**-5)
+optimizer = optim.SGD(model.parameters(), lr=0.00034442093623802093)
 
 train_loss = []
 val_loss_list = []
