@@ -100,7 +100,8 @@ class UCRDataset(Dataset):
     
     def convert_tensor(self):
         y = self.data.iloc[:,0]
-        y_tensor = torch.tensor(y)
+        y_tensor = torch.tensor(y)-1
+        self.target_size = len(y_tensor.unique())
 
         X_df = self.data.drop(0, axis = "columns")
         X_tensor = torch.tensor(X_df.values)
