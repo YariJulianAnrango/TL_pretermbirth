@@ -3,11 +3,12 @@ import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from sklearn.decomposition import PCA 
+from sklearn.preprocessing import MinMaxScaler
 
 class PrematureDataset(Dataset):
     def __init__(self, csv_path, n_components):
-        self.ehg_sequence = pd.read_csv(csv_path)
-
+        data = pd.read_csv(csv_path, index_col = 0)
+        self.ehg_sequence = self.normalize(data)
         self.X, self.y = self.convert_pca_tensor(n_components) 
         # self.X, self.y = self.convert_tensor()
 
@@ -19,13 +20,14 @@ class PrematureDataset(Dataset):
     
     def apply_pca(self, n_components):
         pca = PCA(n_components = n_components)
-        pca.fit(self.ehg_sequence[["channel_1_filt_0.34_1_hz", "channel_2_filt_0.34_1_hz", "channel_3_filt_0.34_1_hz"]])
-        data_pca = pca.transform(self.ehg_sequence[["channel_1_filt_0.34_1_hz", "channel_2_filt_0.34_1_hz", "channel_3_filt_0.34_1_hz"]])
+        pca.fit(self.ehg_sequence[[0, 1, 2]])
+        data_pca = pca.transform(self.ehg_sequence[[0, 1, 2]])
         df_pca = pd.DataFrame(data_pca)
         id_pca = pd.DataFrame({"id":self.ehg_sequence['rec_id'],
                                "pca":df_pca.iloc[:,0],
                                "label":self.ehg_sequence['premature']})
         return id_pca
+    
     def convert_pca_tensor(self, n_components):
         id_pca = self.apply_pca(n_components)
         unique_ids = id_pca['id'].unique()
@@ -62,6 +64,20 @@ class PrematureDataset(Dataset):
 
         return sequences_tensor, labels_tensor
     
+    def normalize(self, data):
+        y = data.loc[:,"premature"]
+        id = data.loc[:, "rec_id"]
+        x = data.drop(["premature", "rec_id"], axis = "columns").values
+  
+        scaler = MinMaxScaler()
+        scaled = scaler.fit_transform(x)
+        
+        scaled_df = pd.DataFrame(scaled)
+        scaled_df.insert(0, "premature", y)
+        scaled_df.insert(1, "rec_id", id)
+        
+        return scaled_df
+    
     
 def train_val_test_split(dataset, test_size):
     trainval, test = torch.utils.data.random_split(dataset, [1-test_size, test_size])
@@ -88,9 +104,11 @@ class PrematureDataloader():
 
 class UCRDataset(Dataset):
     def __init__(self, csv_path):
-        self.data = pd.read_csv(csv_path, sep = "\t", header = None)
+        df = pd.read_csv(csv_path, sep = "\t", header = None)
+        self.data = self.normalize(df)
 
         self.X, self.y = self.convert_tensor()
+
 
     def __len__(self):
         return len(self.y)
@@ -99,12 +117,24 @@ class UCRDataset(Dataset):
         return self.X[idx], self.y[idx]
     
     def convert_tensor(self):
-        y = self.data.iloc[:,0]
+        y = self.data.loc[:,"label"]
         y_tensor = torch.tensor(y)-1
         self.target_size = len(y_tensor.unique())
 
-        X_df = self.data.drop(0, axis = "columns")
+        X_df = self.data.drop("label", axis = "columns")
         X_tensor = torch.tensor(X_df.values)
         
         return X_tensor, y_tensor
+    
+    def normalize(self, data):
+        y = data.iloc[:,0]
+        x = data.drop(0, axis = "columns").values
+
+        scaler = MinMaxScaler()
+        scaled = scaler.fit_transform(x)
+        
+        scaled_df = pd.DataFrame(scaled)
+        scaled_df.insert(0, "label", y)
+        
+        return scaled_df
 
