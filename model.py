@@ -23,7 +23,8 @@ class LSTM(nn.Module):
         self.lin1 = nn.Linear(2*self.hidden_dim, self.target_size)
 
     def forward(self, x):
-        lstm_out, (h, c) = self.lstm(x.float())
+        h0, c0 = self.init_hidden(x)
+        lstm_out, (h, c) = self.lstm(x.float(), (h0, c0))
         last_layer_hidden_state = h.view(self.layer_dim, 2, x.size(0), self.hidden_dim)[-1]
         
         h_1, h_2 = last_layer_hidden_state[0], last_layer_hidden_state[1]
@@ -32,6 +33,11 @@ class LSTM(nn.Module):
         logits = self.lin1(final_hidden_state)
 
         return logits
+    
+    def init_hidden(self, x):
+        h0 = torch.zeros(2*self.layer_dim, x.size(0), self.hidden_dim)
+        c0 = torch.zeros(2*self.layer_dim, x.size(0), self.hidden_dim)
+        return h0, c0
 
 # seed = 1
 # batch_size = 5
