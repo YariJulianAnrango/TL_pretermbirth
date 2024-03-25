@@ -27,6 +27,8 @@ class LSTM(nn.Module):
 
         lstm_out, (h, c) = self.lstm(x.float().to("mps"))
         
+        h0, c0 = self.init_hidden(x)
+        lstm_out, (h, c) = self.lstm(x.float(), (h0, c0))
         last_layer_hidden_state = h.view(self.layer_dim, 2, x.size(0), self.hidden_dim)[-1]
         
         h_1, h_2 = last_layer_hidden_state[0], last_layer_hidden_state[1]
@@ -40,6 +42,16 @@ class LSTM(nn.Module):
 def train_and_evaluate(parameters, model):
     
     dataset = PrematureDataset("./data/total_df.csv")
+    
+    def init_hidden(self, x):
+        h0 = torch.zeros(2*self.layer_dim, x.size(0), self.hidden_dim)
+        c0 = torch.zeros(2*self.layer_dim, x.size(0), self.hidden_dim)
+        return h0, c0
+
+# seed = 1
+# batch_size = 5
+
+# dataset = PrematureDataset("./data/total_df.csv", 1)
 
     train, val, test = train_val_test_split(dataset, 0.3)
     
@@ -62,31 +74,31 @@ def train_and_evaluate(parameters, model):
         model.train()
         total_loss = 0.0
     
-        val_loss = 0
-        for sequence, label in train_loader:    
-            model.zero_grad()
-            
+#         val_loss = 0
+#         for sequence, label in train_loader:    
+#             model.zero_grad()
+#             
             sequence.float().to(device)
             label.to(device)
             
             output = model(sequence)
-            label_correct = label.unsqueeze(-1).float().to(device)
-            loss = loss_function(output, label_correct)
-            
+#             label_correct = label.unsqueeze(-1).float().to(device)
+#             loss = loss_function(output, label_correct)
+#             
             loss.backward()
-            optimizer.step()
+#             optimizer.step()
 
-            total_loss += loss.item()
-        avg_loss = total_loss/len(train)
-        train_loss.append(avg_loss)
+#             total_loss += loss.item()
+#         avg_loss = total_loss/len(train)
+#         train_loss.append(avg_loss)
     
-        model.eval()
-        for sequence, label in val_loader:
-            sequence.float().to(device)
+#         model.eval()
+#         for sequence, label in val_loader:
+#             sequence.float().to(device)
             
             output = model(sequence)
-            label_correct = label.unsqueeze(-1).float().to(device)
-            vloss = loss_function(output, label_correct)
+#             label_correct = label.unsqueeze(-1).float().to(device)
+#             vloss = loss_function(output, label_correct)
         
             val_loss += vloss.item()
         avg_val_loss = val_loss/len(val)
@@ -96,24 +108,9 @@ def train_and_evaluate(parameters, model):
     model.eval()
     preds = []
     labels = []
-
-    sig = nn.Sigmoid()
-    for sequence, label in val_loader:
-        sequence.float().to(device)
-        
-        output = model(sequence)
-        pred = sig(output)
-        for p in pred:
-            preds.append(p.item())
-        for l in label:
-            labels.append(l.item())
-        
-    fpr, tpr, thresholds = metrics.roc_curve(labels, preds, pos_label=1)
-    auc = metrics.auc(fpr, tpr)
-    
-    return auc
-
-
+#         val_loss += vloss.item()
+#     avg_val_loss = val_loss/len(val)
+#     val_loss_list.append(avg_val_loss)
 
     
 
@@ -129,23 +126,21 @@ def train_and_evaluate(parameters, model):
 # preds = []
 # labels = []
 
-# sig = nn.Sigmoid()
-# for sequence, label in val_loader:
-#     output = model(sequence)
-#     pred = sig(output)
-#     for p in pred:
-#         preds.append(p.item())
-#     for l in label:
-#         labels.append(l.item())
+#     sig = nn.Sigmoid()
+#     for sequence, label in val_loader:
+#         sequence.float().to(device)
         
-# fpr, tpr, thresholds = metrics.roc_curve(labels, preds, pos_label=1)
-# auc = metrics.auc(fpr, tpr)
+        output = model(sequence)
+#         pred = sig(output)
+#         for p in pred:
+#             preds.append(p.item())
+#         for l in label:
+#             labels.append(l.item())
+        
+fpr, tpr, thresholds = metrics.roc_curve(labels, preds, pos_label=1)
+print(metrics.auc(fpr, tpr))
 
-# plt.plot(fpr, tpr)
-# plt.title(f"ROC plot with AUC {auc}")
-# plt.xlabel("False positive rate")
-# plt.ylabel("True positive rate")
-# plt.savefig("./figures/pca_roc.png")
-# plt.show()
+plt.plot(fpr, tpr)
+plt.show()
 
 
