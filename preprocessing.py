@@ -9,8 +9,10 @@ class PrematureDataset(Dataset):
     def __init__(self, csv_path, n_components):
         data = pd.read_csv(csv_path, index_col = 0)
         self.ehg_sequence = self.normalize(data)
-        self.X, self.y = self.convert_pca_tensor(n_components) 
-        # self.X, self.y = self.convert_tensor()
+        if n_components < 3:
+            self.X, self.y = self.convert_pca_tensor(n_components) 
+        else:
+            self.X, self.y = self.convert_tensor()
 
     def __len__(self):
         return len(self.y)
@@ -53,7 +55,7 @@ class PrematureDataset(Dataset):
         sequences = []
         labels = []
         for unique_id in unique_ids:
-            id_values = self.ehg_sequence[self.ehg_sequence['rec_id'] == unique_id][["channel_1_filt_0.34_1_hz", "channel_2_filt_0.34_1_hz", "channel_3_filt_0.34_1_hz"]].values
+            id_values = self.ehg_sequence[self.ehg_sequence['rec_id'] == unique_id][[0,1,2]].values
             id_label = np.unique(self.ehg_sequence[self.ehg_sequence['rec_id'] == unique_id]['premature'].values)
 
             sequences.append(id_values)
