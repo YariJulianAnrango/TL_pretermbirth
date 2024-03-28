@@ -5,9 +5,9 @@ class LSTM(nn.Module):
 
     def __init__(self, parameters, target_size = 1, input_dim = 3):
         super(LSTM, self).__init__()
-        self.layer_dim = parameters["layer_dim"]
+        self.layer_dim = int(parameters["layer_dim"])
         self.input_dim = input_dim
-        self.hidden_dim = parameters["hidden_dim"]
+        self.hidden_dim = int(parameters["hidden_dim"])
         self.target_size = target_size
         
         self.lstm = nn.LSTM(self.input_dim, self.hidden_dim, num_layers=self.layer_dim, batch_first=True, bidirectional=True, dropout=parameters["dropout"])
