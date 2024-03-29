@@ -81,10 +81,9 @@ class PrematureDataset(Dataset):
         return scaled_df
     
     
-def train_val_test_split(dataset, test_size):
-    trainval, test = torch.utils.data.random_split(dataset, [1-test_size, test_size])
-    train, val = torch.utils.data.random_split(trainval, [1-test_size, test_size])
-    return train, val, test
+def train_val_split(dataset, test_size):
+    train, val = torch.utils.data.random_split(dataset, [1-test_size, test_size])
+    return train, val
 
 
 

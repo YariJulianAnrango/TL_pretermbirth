@@ -11,31 +11,29 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from model import LSTM
-from preprocessing import UCRDataset, PrematureDataset, train_val_test_split
+from preprocessing import UCRDataset, PrematureDataset, train_val_split
 
 
-def get_ucr_data(data_dir, test_size):
+def get_ucr_data(data_dir, test_size, params):
     dataset = UCRDataset(data_dir)
     target_size = dataset.target_size
     
-    train, val, test = train_val_test_split(dataset, test_size)
+    train, val = train_val_split(dataset, test_size)
     
-    train_loader = DataLoader(train, batch_size = 10, shuffle=True)
-    val_loader = DataLoader(val ,batch_size = 10, shuffle=True)
-    test_loader = DataLoader(test, batch_size = 10, shuffle = True)
+    train_loader = DataLoader(train, batch_size = params["batch_size"], shuffle=True)
+    val_loader = DataLoader(val ,batch_size = params["batch_size"], shuffle=True)
     
-    return train_loader, val_loader, test_loader, target_size
+    return train_loader, val_loader, target_size
 
 def get_preterm_data(test_size, batch_size):
-    dataset = PrematureDataset("./data/total_df.csv", 1)
+    dataset = PrematureDataset("./data/train_test_data/trainval.csv", 1)
 
-    train, val, test = train_val_test_split(dataset, test_size)
+    train, val = train_val_split(dataset, test_size)
     
     train_loader = DataLoader(train, batch_size, shuffle=True)
     val_loader = DataLoader(val ,batch_size, shuffle=True)
-    test_loader = DataLoader(test ,batch_size, shuffle=True)
     
-    return train_loader, val_loader, test_loader
+    return train_loader, val_loader
 
 def get_parameters(path):
     with open(path, "r") as file:
@@ -173,14 +171,14 @@ def finetune(train, val, model, params):
     loss_function = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     device = "cpu"
     
-    optimizer = getattr(optim, params['optimizer'])(model.parameters(), lr= params['learning_rate'])
-    scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.001, total_iters=round(int(params["epochs"])*0.8))
+    optimizer = getattr(optim, params['optimizer_fine'])(model.parameters(), lr= params['learning_rate_fine'])
+    scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.001, total_iters=round(int(params["epochs_fine"])*0.8))
 
     train_loss = []
     val_loss_list = []
     model.to(device)
 
-    for epoch in tqdm(range(int(200))):
+    for epoch in tqdm(range(int(params["epochs_fine"]))):
         model.train()
         total_loss = 0.0
     
@@ -303,18 +301,16 @@ def evaluate_multiclass(train_loss, val_loss, val, model, plot = False):
         
     return f1_score
     
-def perform_transfer_learning(source_data_dir, test_size):
-    train, val, test, target_size = get_ucr_data(source_data_dir, test_size)
-
-    params = get_parameters("./hyperparameter_testing/parameter_testing_baseline_26:03:2024_13:19:38.txt")
+def perform_transfer_learning(source_data_dir, test_size, params):
+    train, val, target_size = get_ucr_data(source_data_dir, test_size, params)
     
     train_loss, val_loss, val, model = pretrain(train, val, target_size, params)
     
-    preterm_train, preterm_val, preterm_test = get_preterm_data(0.3, int(params["batch_size"]))
+    preterm_train, preterm_val = get_preterm_data(0.3, int(params["batch_size_fine"]))
 
     fine_train_loss, fine_val_loss,  finetuned_model = finetune(preterm_train, preterm_val, model, params)
     
-    return fine_train_loss, fine_val_loss, preterm_val, preterm_test, finetuned_model
+    return fine_train_loss, fine_val_loss, preterm_val, finetuned_model
 
 def visualize_seq(data):
     for sequence, label in data: 
@@ -376,8 +372,8 @@ def overfit(params, train):
 
 # print()
 # print("Performing training with transfer learning")
-train_loss, val_loss, val, test, finetuned_model = perform_transfer_learning("/Users/yarianrango/Documents/School/Master-AI-VU/Thesis/data/UCRArchive_2018/ECG5000/ECG5000_TRAIN.tsv", 0.3)
-evaluate_model(train_loss, val_loss, val, finetuned_model, plot = True)
+# train_loss, val_loss, val, test, finetuned_model = perform_transfer_learning("/Users/yarianrango/Documents/School/Master-AI-VU/Thesis/data/UCRArchive_2018/ECG5000/ECG5000_TRAIN.tsv", 0.3)
+# evaluate_model(train_loss, val_loss, val, finetuned_model, plot = True)
 
 # train, val, test, target_size = get_ucr_data("/Users/yarianrango/Documents/School/Master-AI-VU/Thesis/data/UCRArchive_2018/ECG5000/ECG5000_TRAIN.tsv", 0.3)
 
