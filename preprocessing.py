@@ -4,9 +4,10 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from sklearn.decomposition import PCA 
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
 
 class PrematureDataset(Dataset):
-    def __init__(self, csv_path, n_components):
+    def __init__(self, csv_path, n_components, feature_index):
         data = pd.read_csv(csv_path, index_col = 0)
         self.ehg_sequence = self.normalize(data)
         if n_components < 3:
@@ -139,3 +140,59 @@ class UCRDataset(Dataset):
         
         return scaled_df
 
+
+def get_train_val(dataframe):
+    unique_ids = dataframe["rec_id"].unique()
+    val_size = 0.3
+    val_ids = np.random.choice(unique_ids, int(len(unique_ids)*val_size))
+    
+    val = dataframe[dataframe["rec_id"].isin(val_ids)].reset_index(drop = True)
+    train = dataframe.drop(dataframe[dataframe["rec_id"].isin(val_ids)].index).reset_index(drop = True)
+
+    return train, val
+
+class PrematureDatasetSplit(Dataset):
+    def __init__(self, dataframe):#, feature_index):
+        self.ehg_sequence = self.normalize(dataframe)
+        #self.feature_index = feature_index
+        self.X, self.y = self.convert_tensor()
+
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        X = self.X[idx]
+        #X_feature = X[:,self.feature_index]
+        return (X[:,0], X[:, 1], X[:, 2]), self.y[idx]
+    
+    def normalize(self, data):
+        y = data.loc[:,"premature"]
+        id = data.loc[:, "rec_id"]
+        x = data.drop(["premature", "rec_id"], axis = "columns").values
+  
+        scaler = MinMaxScaler()
+        scaled = scaler.fit_transform(x)
+        
+        scaled_df = pd.DataFrame(scaled)
+        scaled_df.insert(0, "premature", y)
+        scaled_df.insert(1, "rec_id", id)
+        
+        return scaled_df
+    
+    def convert_tensor(self):
+        unique_ids = self.ehg_sequence['rec_id'].unique()
+
+        sequences = []
+        labels = []
+        for unique_id in unique_ids:
+            id_values = self.ehg_sequence[self.ehg_sequence['rec_id'] == unique_id][[0,1,2]].values
+            id_label = np.unique(self.ehg_sequence[self.ehg_sequence['rec_id'] == unique_id]['premature'].values)
+
+            sequences.append(id_values)
+            labels.append(id_label)
+
+        sequences_tensor = torch.tensor(sequences)
+        labels_tensor = torch.tensor(labels).squeeze()
+
+        return sequences_tensor, labels_tensor
+   
