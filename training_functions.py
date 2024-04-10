@@ -107,12 +107,11 @@ def train_wo_transfer_learning(params, test_size):
         
     return train_loss, val_loss_list, val, model
 
-def pretrain(train, val, target_size, params):
+def pretrain(train, val, target_size, params, device):
 
-    model = LSTM(params, target_size, input_dim=1)
+    model = LSTM(params, target_size, input_dim=1, device = device)
 
     loss_function = nn.CrossEntropyLoss()
-    device = "cpu"
     
     optimizer = getattr(optim, params['optimizer'])(model.parameters(), lr= params['learning_rate'])
     scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.001, total_iters=round(params["epochs"]*0.8))
@@ -130,7 +129,7 @@ def pretrain(train, val, target_size, params):
             model.zero_grad()
             
             #TODO: Fix input shape independent of data set
-            sequence_shaped = sequence.unsqueeze(-1).float().to(device)
+            sequence_shaped = sequence.unsqueeze(-1).to(torch.float32).to(device)
 
             output = model(sequence_shaped)
             label_correct = label.to(device)
@@ -279,3 +278,8 @@ def overfit(params, train):
         print("Epoch %d: Adam lr %.4f -> %.4f" % (epoch, before_lr, after_lr))
     return train_loss, val_loss_list, model
 
+# params_pre = get_parameters("./hyperparameter_testing/parameter_testing_pretrain_05:04:2024_21:52:26.txt")
+# source_train, source_val, target_size = get_ucr_data("/Users/yarianrango/Documents/School/Master-AI-VU/Thesis/data/UCRArchive_2018/ECG5000/ECG5000_TRAIN.tsv", 0.3, params_pre)
+# train_loss, val_loss, val, model = pretrain(source_train, source_val, target_size, params_pre, device = "cpu")
+
+# torch.save(model.state_dict(), "./models/pretrained")

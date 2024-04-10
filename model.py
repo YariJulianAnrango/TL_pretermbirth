@@ -3,19 +3,19 @@ import torch.nn as nn
 
 class LSTM(nn.Module):
 
-    def __init__(self, parameters, target_size = 1, input_dim = 3):
+    def __init__(self, parameters, target_size = 1, input_dim = 3, device = "cpu"):
         super(LSTM, self).__init__()
         self.layer_dim = int(parameters["layer_dim"])
         self.input_dim = input_dim
         self.hidden_dim = int(parameters["hidden_dim"])
         self.target_size = target_size
-        
+        self.device = device
         self.lstm = nn.LSTM(self.input_dim, self.hidden_dim, num_layers=self.layer_dim, batch_first=True, bidirectional=True, dropout=parameters["dropout"])
         self.lin1 = nn.Linear(2*self.hidden_dim, self.target_size)
 
     def forward(self, x):
         h0, c0 = self.init_hidden(x)
-        lstm_out, (h, c) = self.lstm(x.float(), (h0, c0))
+        lstm_out, (h, c) = self.lstm(x.float(), (h0.to(self.device), c0.to(self.device)))
         
         last_layer_hidden_state = h.view(self.layer_dim, 2, x.size(0), self.hidden_dim)[-1]
         
@@ -38,28 +38,39 @@ class Identity(nn.Module):
         return x
     
 class FCN(nn.Module):
-    def __init__(self, parameters):
+    def __init__(self, parameters, hidden_dim):
         super(FCN, self).__init__()
-        self.lin1 = nn.Linear(60, 256)
-        self.lin2 = nn.Linear(256, 24)
-        self.lin3 = nn.Linear(24, 1)
+        if parameters["lin_layers"] == 1:
+            self.m = nn.Sequential(
+                nn.Linear(int(hidden_dim*2*3), 1)
+            )
+        elif parameters["lin_layers"] == 2:
+            self.m = nn.Sequential(
+                nn.Linear(int(hidden_dim*2*3), int(parameters["hidden1"])),
+                nn.ReLU(),
+                nn.Linear(int(parameters["hidden1"]), 1)
+            )
+            
+        elif parameters["lin_layers"] == 3:
+            self.m = nn.Sequential(
+                nn.Linear(int(hidden_dim*2*3), int(parameters["hidden1"])),
+                nn.ReLU(),
+                nn.Linear(int(parameters["hidden1"]), int(parameters["hidden2"])),
+                nn.ReLU(),
+                nn.Linear(int(parameters["hidden2"]), 1)
+            )      
     
     def forward(self, x):
-        x1 = self.lin1(x)
-        x2 = self.lin2(x1)
-        y = self.lin3(x2)
-        
+        y = self.m(x)
         return y
     
 class multichannelLSTM(nn.Module):
     
-    def __init__(self, LSTM, parameters):
+    def __init__(self, LSTM, parameters, hidden_dim):
         super(multichannelLSTM, self).__init__()
         self.LSTM = LSTM
-        self.FCN = FCN(parameters)
+        self.FCN = FCN(parameters, hidden_dim)
         self.flatten = nn.Flatten()
-        self.layer_dim = int(parameters["layer_dim"])
-        self.hidden_dim = int(parameters["layer_dim"])
         
     def forward(self, x0, x1, x2):
         x0_out = self.LSTM(x0).unsqueeze(2)

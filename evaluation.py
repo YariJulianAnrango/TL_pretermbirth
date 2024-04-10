@@ -3,9 +3,10 @@ from sklearn import metrics
 import torch.nn as nn
 import torch
 
+
 import matplotlib.pyplot as plt
 
-def evaluate_model(train_loss, val_loss, val, model, plot = False):
+def evaluate_model(train_loss, val_loss, val, model, device = "cpu", plot = False):
     if plot:
         plt.plot(train_loss, label = 'train loss')
         plt.plot(val_loss, label = 'val loss')
@@ -51,7 +52,7 @@ def evaluate_model(train_loss, val_loss, val, model, plot = False):
     
     return auc
     
-def evaluate_multiclass(train_loss, val_loss, val, model, plot = False):
+def evaluate_multiclass(train_loss, val_loss, val, model, device = "cpu", plot = False):
     if plot:
         plt.plot(train_loss, label = 'train loss')
         plt.plot(val_loss, label = 'val loss')
@@ -66,16 +67,13 @@ def evaluate_multiclass(train_loss, val_loss, val, model, plot = False):
 
     softmax = nn.Softmax()
     for sequence, label in val:
-        sequence_shaped = sequence.unsqueeze(-1).float().to("cpu")
+        sequence_shaped = sequence.unsqueeze(-1).to(torch.float32).to(device)
     
         logits_output = model(sequence_shaped)
-        # print("logits \n",logits_output)
+
         probs = softmax(logits_output)
-        # print("probs \n",probs)
+
         pred = torch.argmax(probs, axis = 1)
-        # print("pred \n",pred)
-        # print("label \n",label)
-        # print()
         for p in pred:
             preds.append(p.item())
         for l in label:
@@ -89,7 +87,7 @@ def evaluate_multiclass(train_loss, val_loss, val, model, plot = False):
         
     return f1_score
 
-def evaluate_model_split(train_loss, val_loss, val, model, plot = False):
+def evaluate_model_split(train_loss, val_loss, val, model, device = "cpu", plot = False):
     if plot:
         plt.plot(train_loss, label = 'train loss')
         plt.plot(val_loss, label = 'val loss')
@@ -105,11 +103,10 @@ def evaluate_model_split(train_loss, val_loss, val, model, plot = False):
     sig = nn.Sigmoid()
     with torch.no_grad():
         for (x1, x2, x3), label in val:
-            output = model(x1.unsqueeze(-1), x2.unsqueeze(-1), x3.unsqueeze(-1))
+            output = model(x1.to(torch.float32).unsqueeze(-1).to(device), x2.to(torch.float32).unsqueeze(-1).to(device), x3.to(torch.float32).unsqueeze(-1).to(device))
 
             pred = sig(output).round().int()
-            print("pred",pred)
-            print("label",label)
+
             for p in pred:
                 preds.append(p.item())
             for l in label:
