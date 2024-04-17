@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from tslearn.barycenters import dtw_barycenter_averaging
 import os
+import matplotlib.pyplot as plt
 
 from preprocessing import UCRDataset,  PrematureDatasetSplit
 
@@ -48,4 +49,47 @@ def loop_dtw_calculation(source_data_directory):
         for key, value in results.items():
             f.write("{}: {} \n".format(key, value))
 
+def read_dtw_results(path):
+    with open(path, "r") as file:
+        txt = file.readlines()
+
+    dtw = {}
+    for line in txt:
+        key, value = line.replace(":", "").replace("\n", "").strip().split()
+        dtw[key] = float(value)
+    dtw_sorted = [(v,k) for k,v in dtw.items()]
+    dtw_sorted.sort()
+    return dtw_sorted
+
+def plot_dtw(path):
+    dtw = read_dtw_results(path)
+    source_data_directory = "../data/UCRArchive_2018"
+    for folder_name in os.listdir(source_data_directory):
+            folder_path = os.path.join(source_data_directory, folder_name)
+            if os.path.isdir(folder_path):  
+                for file_name in os.listdir(folder_path):
+                    if file_name.endswith('.tsv') and 'TRAIN' in file_name:
+                        print(f"Filename: {file_name}:")
+                        file_path = os.path.join(folder_path, file_name)
+                        source_dataset = UCRDataset(file_path)
+                        length = len(source_dataset.X[0])
+                        dtw[file_name] = [dtw[file_name], length]
+                         
+    keys = list(dtw.keys())
+    values = list(dtw.values())
+
+    dtw_values = [val[0] for val in values]
+    length_values = [val[1] for val in values]
+
+    plt.scatter(dtw_values, length_values)
+
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel("DTW distance")
+    plt.ylabel("Length of sequence")
+    plt.title("DTW distance is related to the length of the sequence")
+    # plt.savefig("./figures/dtw_results.png")
+    plt.show()
+
+print(read_dtw_results("./results/dtw_results.txt"))
     
