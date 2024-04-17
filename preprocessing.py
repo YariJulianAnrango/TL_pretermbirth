@@ -4,7 +4,7 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from sklearn.decomposition import PCA 
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
+from train_test_split import random_split
 
 class PrematureDataset(Dataset):
     def __init__(self, csv_path, n_components, feature_index):
@@ -79,14 +79,11 @@ class PrematureDataset(Dataset):
         scaled_df.insert(0, "premature", y)
         scaled_df.insert(1, "rec_id", id)
         
-        return scaled_df
-    
+        return scaled_df  
     
 def train_val_split(dataset, test_size):
-    train, val = torch.utils.data.random_split(dataset, [1-test_size, test_size])
+    train, val = random_split(dataset, [1-test_size, test_size])
     return train, val
-
-
 
 class PrematureDataloader():
     def __init__(self, dataset, test_size, batch_size = None):
@@ -139,7 +136,6 @@ class UCRDataset(Dataset):
         scaled_df.insert(0, "label", y)
         
         return scaled_df
-
 
 def get_train_val(dataframe):
     unique_ids = dataframe["rec_id"].unique()

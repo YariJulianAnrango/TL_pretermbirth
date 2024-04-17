@@ -195,10 +195,10 @@ def load_pretrained_lstm(path, params, target_size, input_dim = 1, device = "cpu
     model.load_state_dict(torch.load(path))
     
     return model
-params_fine = get_parameters("./hyperparameter_testing/parameter_testing_mLSTM_kfold_09:04:2024_22:12:09.txt")
+# params_fine = get_parameters("./hyperparameter_testing/parameter_testing_mLSTM_kfold_09:04:2024_22:12:09.txt")
 
-train_loss, val_loss_list, val, mLSTM = multichannel_finetune(params_fine=params_fine)
+# train_loss, val_loss_list, val, mLSTM = multichannel_finetune(params_fine=params_fine)
 
-evaluate_model_split(train_loss, val_loss_list, val, mLSTM, plot = True)
+# evaluate_model_split(train_loss, val_loss_list, val, mLSTM, plot = True)
     
     

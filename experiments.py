@@ -9,6 +9,9 @@ from multichannel_concatenation import multichannel_finetune, kfold_multichannel
 
 import optuna
 from datetime import datetime
+from functools import partial
+
+import os
 
 seed = 1
 
@@ -83,22 +86,27 @@ def multichannel_tf_objective(trial):
 
     return auc
 
-def pretrain_objective(trial):
+def pretrain_objective(trial, data_path):
     params = {
-        "batch_size": trial.suggest_int("batch_size", 2, 20),
+        "batch_size": trial.suggest_int("batch_size", 4, 64),
         "learning_rate": trial.suggest_float("learning_rate", 1e-5, 1e-1, log=True),
         "optimizer": trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"]),
-        "layer_dim": trial.suggest_int("layer_dim", 1, 6),
+        "layer_dim": trial.suggest_int("layer_dim", 1, 4),
         "hidden_dim": trial.suggest_int("hidden_dim", 4, 24),
         "dropout": trial.suggest_float("dropout", 0.1, 0.5),
-        "epochs": trial.suggest_int("epochs", 20, 600),
+        "epochs": trial.suggest_int("epochs", 20, 200),
     }
     
     device = "cpu"
-    source_train, source_val, target_size = get_ucr_data("../data/UCRArchive_2018/ECG5000/ECG5000_TRAIN.tsv", 0.3, params)
-    train_loss, val_loss, val, model = pretrain(source_train, source_val, target_size, params, device)
+    source_train, source_val, target_size = get_ucr_data(data_path, 0.3, params)
     
-    f1_score = evaluate_multiclass(train_loss, val_loss, val, model, device)
+    if target_size == 2:
+        target_size = 1  
+        train_loss, val_loss, val, model = pretrain(source_train, source_val, target_size, params, device, binary_classes=True)
+        f1_score = evaluate_model(train_loss, val_loss, val, model, return_f1=True, device = device)
+    else:
+        train_loss, val_loss, val, model = pretrain(source_train, source_val, target_size, params, device)
+        f1_score = evaluate_multiclass(train_loss, val_loss, val, model, device)
     
     return f1_score
     
@@ -118,17 +126,45 @@ def kfold_mLSTM_objective(trial):
 
     return auc
 
-study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler())
-study.optimize(kfold_mLSTM_objective, n_trials=50)
+def tune_all_source_data(source_data_directory):
+    for folder_name in os.listdir(source_data_directory):
+        folder_path = os.path.join(source_data_directory, folder_name)
+        if os.path.isdir(folder_path):  
+            for file_name in os.listdir(folder_path):
+                if file_name.endswith('.tsv') and 'TRAIN' in file_name:
+                    print(f"Filename: {file_name}:")
+                    file_path = os.path.join(folder_path, file_name)
+                    
+                    study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler())
+                    objective = partial(pretrain_objective, data_path = file_path)
+                    study.optimize(objective, n_trials=25)
 
-best_trial = study.best_trial
+                    best_trial = study.best_trial
 
-now = datetime.now()
+                    now = datetime.now()
 
-dt_string = now.strftime("%d:%m:%Y_%H:%M:%S")
+                    dt_string = now.strftime("%d:%m:%Y_%H:%M:%S")
 
-file_name = "./hyperparameter_testing/parameter_testing_mLSTM_kfold_" + dt_string + ".txt"
-with open(file_name, "w") as f:
-    for key, value in best_trial.params.items():
-        f.write("{}: {} ".format(key, value))
-    f.write(f"auc: {study.best_value}")
+                    file_name = "./hyperparameter_testing/source_data/parameter_testing_" + file_name + "_" + dt_string + ".txt"
+                    with open(file_name, "w") as f:
+                        for key, value in best_trial.params.items():
+                            f.write("{}: {} ".format(key, value))
+                        f.write(f"f1: {study.best_value}")
+
+tune_all_source_data("../data/source_datasets")
+# study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler())
+# study.optimize(kfold_mLSTM_objective, n_trials=50)
+
+# best_trial = study.best_trial
+
+# now = datetime.now()
+
+# dt_string = now.strftime("%d:%m:%Y_%H:%M:%S")
+
+# file_name = "./hyperparameter_testing/parameter_testing_mLSTM_kfold_" + dt_string + ".txt"
+# with open(file_name, "w") as f:
+#     for key, value in best_trial.params.items():
+#         f.write("{}: {} ".format(key, value))
+#     f.write(f"auc: {study.best_value}")
+    
+

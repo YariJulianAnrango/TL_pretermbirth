@@ -4,13 +4,9 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch.optim.lr_scheduler as lr_scheduler
 
-import pandas as pd
-from sklearn import metrics
-
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from model import LSTM, Identity
+from model import LSTM
 from preprocessing import UCRDataset, PrematureDataset, train_val_split
 
 
@@ -107,11 +103,14 @@ def train_wo_transfer_learning(params, test_size):
         
     return train_loss, val_loss_list, val, model
 
-def pretrain(train, val, target_size, params, device):
+def pretrain(train, val, target_size, params, device, binary_classes = False):
 
     model = LSTM(params, target_size, input_dim=1, device = device)
 
-    loss_function = nn.CrossEntropyLoss()
+    if binary_classes:
+        loss_function = nn.BCEWithLogitsLoss()
+    else:
+        loss_function = nn.CrossEntropyLoss()
     
     optimizer = getattr(optim, params['optimizer'])(model.parameters(), lr= params['learning_rate'])
     scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.001, total_iters=round(params["epochs"]*0.8))
@@ -126,13 +125,17 @@ def pretrain(train, val, target_size, params, device):
     
         val_loss = 0
         for sequence, label in train: 
+
             model.zero_grad()
             
             #TODO: Fix input shape independent of data set
             sequence_shaped = sequence.unsqueeze(-1).to(torch.float32).to(device)
 
-            output = model(sequence_shaped)
-            label_correct = label.to(device)
+            output = model(sequence_shaped).squeeze(-1)
+            if binary_classes:
+                label_correct = label.to(device).float()
+            else:
+                label_correct = label.to(device).long()
 
             loss = loss_function(output, label_correct)
             loss.backward()
@@ -148,8 +151,11 @@ def pretrain(train, val, target_size, params, device):
         with torch.no_grad():
             for sequence, label in val:
                 sequence_shaped = sequence.unsqueeze(-1).float().to(device)
-                output = model(sequence_shaped)
-                label_correct = label.to(device)
+                output = model(sequence_shaped).squeeze(-1)
+                if binary_classes:
+                    label_correct = label.to(device).float()
+                else:
+                    label_correct = label.to(device).long()
                 vloss = loss_function(output, label_correct)
         
                 val_loss += vloss.item()
@@ -279,7 +285,8 @@ def overfit(params, train):
     return train_loss, val_loss_list, model
 
 # params_pre = get_parameters("./hyperparameter_testing/parameter_testing_pretrain_05:04:2024_21:52:26.txt")
-# source_train, source_val, target_size = get_ucr_data("/Users/yarianrango/Documents/School/Master-AI-VU/Thesis/data/UCRArchive_2018/ECG5000/ECG5000_TRAIN.tsv", 0.3, params_pre)
-# train_loss, val_loss, val, model = pretrain(source_train, source_val, target_size, params_pre, device = "cpu")
+# params_pre["epochs"] = 3
+# source_train, source_val, target_size = get_ucr_data("/Users/yarianrango/Documents/School/Master-AI-VU/Thesis/data/source_datasets/ECG200/ECG200_TRAIN.tsv", 0.3, params_pre)
+# train_loss, val_loss, val, model = pretrain(source_train, source_val, 1, params_pre, device = "cpu", binary_classes=True)
 
 # torch.save(model.state_dict(), "./models/pretrained")

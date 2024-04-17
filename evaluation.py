@@ -6,7 +6,7 @@ import torch
 
 import matplotlib.pyplot as plt
 
-def evaluate_model(train_loss, val_loss, val, model, device = "cpu", plot = False):
+def evaluate_model(train_loss, val_loss, val, model, return_f1 = False, device = "cpu", plot = False):
     if plot:
         plt.plot(train_loss, label = 'train loss')
         plt.plot(val_loss, label = 'val loss')
@@ -26,8 +26,7 @@ def evaluate_model(train_loss, val_loss, val, model, device = "cpu", plot = Fals
         logits_output = model(sequence_shaped)
 
         pred = sig(logits_output).round().int()
-        print("pred",pred)
-        print("label",label)
+
         for p in pred:
             preds.append(p.item())
         for l in label:
@@ -35,6 +34,9 @@ def evaluate_model(train_loss, val_loss, val, model, device = "cpu", plot = Fals
         
     accuracy = metrics.accuracy_score(labels, preds)
     f1_score = metrics.f1_score(labels, preds)
+    
+    if return_f1:
+        return f1_score
 
     fpr, tpr, thresholds = metrics.roc_curve(labels, preds, pos_label=1)
     auc = metrics.auc(fpr, tpr)
