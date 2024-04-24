@@ -6,7 +6,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 
 from tqdm import tqdm
 
-from model import LSTM
+from model import LSTM, CNN
 from preprocessing import UCRDataset, PrematureDataset, train_val_split
 
 
@@ -103,9 +103,7 @@ def train_wo_transfer_learning(params, test_size):
         
     return train_loss, val_loss_list, val, model
 
-def pretrain(train, val, target_size, params, device, binary_classes = False):
-
-    model = LSTM(params, target_size, input_dim=1, device = device)
+def pretrain(model, train, val, target_size, params, device, binary_classes = False):
 
     if binary_classes:
         loss_function = nn.BCEWithLogitsLoss()
@@ -113,7 +111,7 @@ def pretrain(train, val, target_size, params, device, binary_classes = False):
         loss_function = nn.CrossEntropyLoss()
     
     optimizer = getattr(optim, params['optimizer'])(model.parameters(), lr= params['learning_rate'])
-    scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.001, total_iters=round(params["epochs"]*0.8))
+    # scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.001, total_iters=round(params["epochs"]*0.8))
     
     train_loss = []
     val_loss_list = []
@@ -129,14 +127,12 @@ def pretrain(train, val, target_size, params, device, binary_classes = False):
             model.zero_grad()
             
             #TODO: Fix input shape independent of data set
-            sequence_shaped = sequence.unsqueeze(-1).to(torch.float32).to(device)
-
+            sequence_shaped = sequence.unsqueeze(-1).to(torch.float32).to(device).permute(0,2,1)
             output = model(sequence_shaped).squeeze(-1)
             if binary_classes:
                 label_correct = label.to(device).float()
             else:
                 label_correct = label.to(device).long()
-
             loss = loss_function(output, label_correct)
             loss.backward()
             optimizer.step()
@@ -145,12 +141,12 @@ def pretrain(train, val, target_size, params, device, binary_classes = False):
         avg_loss = total_loss/len(train)
         train_loss.append(avg_loss)
 
-        scheduler.step()
+        # scheduler.step()
         
         model.eval()
         with torch.no_grad():
             for sequence, label in val:
-                sequence_shaped = sequence.unsqueeze(-1).float().to(device)
+                sequence_shaped = sequence.unsqueeze(-1).to(torch.float32).to(device).permute(0,2,1)
                 output = model(sequence_shaped).squeeze(-1)
                 if binary_classes:
                     label_correct = label.to(device).float()
@@ -285,8 +281,13 @@ def overfit(params, train):
     return train_loss, val_loss_list, model
 
 # params_pre = get_parameters("./hyperparameter_testing/parameter_testing_pretrain_05:04:2024_21:52:26.txt")
-# params_pre["epochs"] = 3
-# source_train, source_val, target_size = get_ucr_data("/Users/yarianrango/Documents/School/Master-AI-VU/Thesis/data/source_datasets/ECG200/ECG200_TRAIN.tsv", 0.3, params_pre)
-# train_loss, val_loss, val, model = pretrain(source_train, source_val, 1, params_pre, device = "cpu", binary_classes=True)
+# params_pre["epochs"] = 40
 
-# torch.save(model.state_dict(), "./models/pretrained")
+# source_train, source_val, target_size = get_ucr_data("/Users/yarianrango/Documents/School/Master-AI-VU/Thesis/data/test/ECG5000/ECG5000_TEST.tsv", 0.3, params_pre)
+# model = CNN(target_size=target_size)
+# train_loss, val_loss, val, model = pretrain(model, source_train, source_val, target_size, params_pre, device = "cpu", binary_classes=False)
+
+# from evaluation import evaluate_multiclass
+# evaluate_multiclass(train_loss, val_loss, val, model, plot = True)
+
+# torch.save(model.state_dict(), "./models/pretrained_cnn")

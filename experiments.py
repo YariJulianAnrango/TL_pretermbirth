@@ -4,8 +4,8 @@ from training_functions import (
     perform_transfer_learning,
 )
 from evaluation import evaluate_model, evaluate_multiclass, evaluate_model_split
-
-from multichannel_concatenation import multichannel_finetune, kfold_multichannel
+from multichannel_concatenation import multichannel_finetune, kfold_multichannel, load_pretrained_lstm
+from model import LSTM, MultiChannelModel, CNN
 
 import optuna
 from datetime import datetime
@@ -99,17 +99,39 @@ def pretrain_objective(trial, data_path):
     
     device = "cpu"
     source_train, source_val, target_size = get_ucr_data(data_path, 0.3, params)
-    
+    cnn = CNN(target_size, device)
     if target_size == 2:
         target_size = 1  
-        train_loss, val_loss, val, model = pretrain(source_train, source_val, target_size, params, device, binary_classes=True)
+        train_loss, val_loss, val, model = pretrain(cnn, source_train, source_val, target_size, params, device, binary_classes=True)
         f1_score = evaluate_model(train_loss, val_loss, val, model, return_f1=True, device = device)
     else:
-        train_loss, val_loss, val, model = pretrain(source_train, source_val, target_size, params, device)
+        train_loss, val_loss, val, model = pretrain(cnn, source_train, source_val, target_size, params, device)
         f1_score = evaluate_multiclass(train_loss, val_loss, val, model, device)
     
     return f1_score
+
+def pretrain_cnn_objective(trial, data_path):
+    params = {
+        "batch_size": trial.suggest_int("batch_size", 4, 64),
+        "learning_rate": trial.suggest_float("learning_rate", 1e-5, 1e-1, log=True),
+        "optimizer": trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"]),
+        "epochs": trial.suggest_int("epochs", 20, 200),
+    }
     
+    device = "cpu"
+    source_train, source_val, target_size = get_ucr_data(data_path, 0.3, params)
+    if target_size == 2:
+        target_size = 1  
+        cnn = CNN(target_size)
+        train_loss, val_loss, val, model = pretrain(cnn, source_train, source_val, target_size, params, device, binary_classes=True)
+        f1_score = evaluate_model(train_loss, val_loss, val, model, return_f1=True, device = device)
+    else:
+        cnn = CNN(target_size)
+        train_loss, val_loss, val, model = pretrain(cnn, source_train, source_val, target_size, params, device)
+        f1_score = evaluate_multiclass(train_loss, val_loss, val, model, device)
+    
+    return f1_score
+
 def kfold_mLSTM_objective(trial):
     params = {
         "batch_size": trial.suggest_int("batch_size", 2, 20),
@@ -136,7 +158,7 @@ def tune_all_source_data(source_data_directory):
                     file_path = os.path.join(folder_path, file_name)
                     
                     study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler())
-                    objective = partial(pretrain_objective, data_path = file_path)
+                    objective = partial(pretrain_cnn_objective, data_path = file_path)
                     study.optimize(objective, n_trials=25)
 
                     best_trial = study.best_trial
@@ -145,7 +167,7 @@ def tune_all_source_data(source_data_directory):
 
                     dt_string = now.strftime("%d:%m:%Y_%H:%M:%S")
 
-                    file_name = "./hyperparameter_testing/source_data/parameter_testing_" + file_name + "_" + dt_string + ".txt"
+                    file_name = "./hyperparameter_testing/cnn_source_data/parameter_testing_" + file_name + "_" + dt_string + ".txt"
                     with open(file_name, "w") as f:
                         for key, value in best_trial.params.items():
                             f.write("{}: {} ".format(key, value))

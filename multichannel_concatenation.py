@@ -1,7 +1,7 @@
 from training_functions import pretrain, get_ucr_data, get_parameters
 from evaluation import evaluate_model_split
 from preprocessing import get_train_val, PrematureDatasetSplit
-from model import multichannelLSTM, Identity, LSTM
+from model import MultiChannelModel, Identity, LSTM, CNN
 
 import pandas as pd
 from torch.utils.data import DataLoader, ConcatDataset, SubsetRandomSampler
@@ -70,38 +70,29 @@ def valid_epoch(model, val_loader, criterion, device):
         
     return avg_val_loss
 
-def multichannel_finetune(params_fine = None, params_pre = None, device = "cpu"):
+def multichannel_finetune(model_name, source_path, params_fine = None, params_pre = None, device = "cpu"):
     """Trains multichannel concatenation model
 
     Args:
+        model: string indicating the use of the LSTM or CNN
+        source_path: string indicating path to source dataset
         params_fine: dictionary containing parameters for funetining
         params_pre: dictionary containing parameters for pretraining. Will default to best parameters if none is given
         device: pytorch device, defaults to cpu
     """
-    if params_pre is None:
-        params_pre = get_parameters("./hyperparameter_testing/parameter_testing_pretrain_05:04:2024_21:52:26.txt")
-
-    source_train, source_val, target_size = get_ucr_data("/Users/yarianrango/Documents/School/Master-AI-VU/Thesis/data/UCRArchive_2018/ECG5000/ECG5000_TRAIN.tsv", 0.3, params_pre)
-    model = load_pretrained_lstm("./models/pretrained", params_pre, target_size, input_dim = 1, device = device)
+    source_train, source_val, target_size = get_ucr_data(source_path, 0.3, params_pre)
     
-    # Freeze LSTM layers and remove final linear layer
-    for param in model.parameters():
-        param.requires_grad = False
-        
-    model._modules["lin1"] = Identity()
+    # Get multimodel
+    multimodel = get_multichannelmodel(model_name, params_pre, params_fine, target_size, device)
     
     # Get dataloader
     train, val = split_features(params_fine)
-    
-    # Init multichannel model
-    mLSTM = multichannelLSTM(model, params_fine, hidden_dim=params_pre["hidden_dim"])
-    mLSTM.to(device)
     
     # Get loss function and optimizer
     pos_weight = torch.tensor([params_fine["loss_weight"]]).to(device)
     loss_function = nn.BCEWithLogitsLoss(pos_weight)
     
-    optimizer = getattr(optim, params_fine['optimizer'])(mLSTM.parameters(), lr= params_fine['learning_rate'])
+    optimizer = getattr(optim, params_fine['optimizer'])(multimodel.parameters(), lr= params_fine['learning_rate'])
     scheduler = optim.lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.001, total_iters=round(int(params_fine["epochs"])*0.8))
     
     val_loss_list = []
@@ -109,18 +100,18 @@ def multichannel_finetune(params_fine = None, params_pre = None, device = "cpu")
  
     # Training loop
     for epoch in tqdm(range(int(params_fine["epochs"]))):
-        mLSTM.train()
-        train_loss = train_epoch(mLSTM, train, loss_function, optimizer, device)
+        multimodel.train()
+        train_loss = train_epoch(multimodel, train, loss_function, optimizer, device)
         train_loss_list.append(train_loss)
         
         scheduler.step()
         
         # Evaluate in between epochs
-        model.eval()
-        val_loss = valid_epoch(mLSTM, val, loss_function, device)
+        multimodel.eval()
+        val_loss = valid_epoch(multimodel, val, loss_function, device)
         val_loss_list.append(val_loss)
             
-    return train_loss_list, val_loss_list, val, mLSTM
+    return train_loss_list, val_loss_list, val, multimodel
 
 def kfold_multichannel(params_fine = None, params_pre = None, device = "cpu"):
 
@@ -189,9 +180,34 @@ def kfold_multichannel(params_fine = None, params_pre = None, device = "cpu"):
     avg_auc = tot_auc/k
     
     return avg_auc
+
+def get_multichannelmodel(model, params_pre, params_fine, target_size, device):
+    if model == "LSTM":
+        params_pre = get_parameters(params_pre)
+        model = load_pretrained_lstm("./models/pretrained", params_pre, target_size, input_dim = 1, device = device)
+        hidden_dim = params_pre["hidden_dim"]
+    elif model == "CNN":
+        model = load_pretrained_cnn("./models/pretrained_cnn", target_size, device)
+        hidden_dim = 128
+        
+    for param in model.parameters():
+        param.requires_grad = False
+        
+    model._modules["lin1"] = Identity()
     
+    multimodel = MultiChannelModel(model, params_fine, hidden_dim=hidden_dim)
+    multimodel.to(device)
+    
+    return multimodel
+
 def load_pretrained_lstm(path, params, target_size, input_dim = 1, device = "cpu"):
     model = LSTM(params, target_size, input_dim, device)
+    model.load_state_dict(torch.load(path))
+    
+    return model
+
+def load_pretrained_cnn(path, target_size, device = "cpu"):
+    model = CNN(target_size, device)
     model.load_state_dict(torch.load(path))
     
     return model
