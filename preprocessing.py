@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from sklearn.decomposition import PCA 
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from train_test_split import random_split
 
 class PrematureDataset(Dataset):
@@ -72,7 +72,7 @@ class PrematureDataset(Dataset):
         id = data.loc[:, "rec_id"]
         x = data.drop(["premature", "rec_id"], axis = "columns").values
   
-        scaler = MinMaxScaler()
+        scaler = StandardScaler()
         scaled = scaler.fit_transform(x)
         
         scaled_df = pd.DataFrame(scaled)
@@ -103,8 +103,8 @@ class PrematureDataloader():
 
 class UCRDataset(Dataset):
     def __init__(self, csv_path):
-        df = pd.read_csv(csv_path, sep = "\t", header = None)
-        self.data = self.normalize(df)
+        self.data = pd.read_csv(csv_path, sep = "\t", header = None)
+        # self.data = self.normalize(df)
 
         self.X, self.y = self.convert_tensor()
 
@@ -116,11 +116,11 @@ class UCRDataset(Dataset):
         return self.X[idx], self.y[idx]
     
     def convert_tensor(self):
-        y = self.data.loc[:,"label"]
+        y = self.data.iloc[:,0]
         y_tensor = torch.tensor(y)-1
         self.target_size = len(y_tensor.unique())
 
-        X_df = self.data.drop("label", axis = "columns")
+        X_df = self.data.drop(0, axis = "columns")
         X_tensor = torch.tensor(X_df.values)
         
         return X_tensor, y_tensor
@@ -129,7 +129,7 @@ class UCRDataset(Dataset):
         y = data.iloc[:,0]
         x = data.drop(0, axis = "columns").values
 
-        scaler = MinMaxScaler()
+        scaler = StandardScaler()
         scaled = scaler.fit_transform(x)
         
         scaled_df = pd.DataFrame(scaled)
