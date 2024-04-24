@@ -64,24 +64,52 @@ class FCN(nn.Module):
         y = self.m(x)
         return y
     
-class multichannelLSTM(nn.Module):
+class MultiChannelModel(nn.Module):
     
-    def __init__(self, LSTM, parameters, hidden_dim):
-        super(multichannelLSTM, self).__init__()
-        self.LSTM = LSTM
+    def __init__(self, model, parameters, hidden_dim):
+        super(MultiChannelModel, self).__init__()
+        self.model = model
         self.FCN = FCN(parameters, hidden_dim)
         self.flatten = nn.Flatten()
         
     def forward(self, x0, x1, x2):
-        x0_out = self.LSTM(x0).unsqueeze(2)
-        x1_out = self.LSTM(x1).unsqueeze(2)
-        x2_out = self.LSTM(x2).unsqueeze(2)
+        x0_out = self.model(x0).unsqueeze(2)
+        x1_out = self.model(x1).unsqueeze(2)
+        x2_out = self.model(x2).unsqueeze(2)
         
         x_cat = torch.cat((x0_out, x1_out, x2_out), 2)
         
         x_flat = self.flatten(x_cat)
 
         y = self.FCN(x_flat.float())
+        return y
+
+class CNN(nn.Module):
+    def __init__(self, target_size, input_dim = 1):
+        super(CNN, self).__init__()        
+        self.conv1 = nn.Conv1d(input_dim, 128, 8)
+        self.batch1 = nn.BatchNorm1d(128)
+        
+        self.conv2 = nn.Conv1d(128, 256, 5)
+        self.batch2 = nn.BatchNorm1d(256)
+        
+        
+        self.conv3 = nn.Conv1d(256, 128, 3)
+        self.batch3 = nn.BatchNorm1d(128)
+        
+        self.lin1 = nn.Linear(128, target_size)
+        
+        self.relu = nn.ReLU()
+    
+    def forward(self, x):
+        x1 = self.relu(self.batch1(self.conv1(x)))
+        x2 = self.relu(self.batch2(self.conv2(x1)))
+        x3 = self.relu(self.batch3(self.conv3(x2)))
+
+        x4 = x3.mean(2)
+
+        y = self.lin1(x4)
+        
         return y
         
 
