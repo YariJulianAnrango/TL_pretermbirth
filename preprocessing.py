@@ -78,7 +78,6 @@ class PrematureDataset(Dataset):
         scaled_df = pd.DataFrame(scaled)
         scaled_df.insert(0, "premature", y)
         scaled_df.insert(1, "rec_id", id)
-        
         return scaled_df  
     
 def train_val_split(dataset, test_size):
@@ -148,9 +147,8 @@ def get_train_val(dataframe):
     return train, val
 
 class PrematureDatasetSplit(Dataset):
-    def __init__(self, dataframe):#, feature_index):
+    def __init__(self, dataframe):
         self.ehg_sequence = self.normalize(dataframe)
-        #self.feature_index = feature_index
         self.X, self.y = self.convert_tensor()
 
     def __len__(self):
@@ -158,7 +156,6 @@ class PrematureDatasetSplit(Dataset):
 
     def __getitem__(self, idx):
         X = self.X[idx]
-        #X_feature = X[:,self.feature_index]
         return (X[:,0], X[:, 1], X[:, 2]), self.y[idx]
     
     def normalize(self, data):
@@ -166,13 +163,13 @@ class PrematureDatasetSplit(Dataset):
         id = data.loc[:, "rec_id"]
         x = data.drop(["premature", "rec_id"], axis = "columns").values
   
-        scaler = MinMaxScaler()
+        scaler = StandardScaler()
         scaled = scaler.fit_transform(x)
         
         scaled_df = pd.DataFrame(scaled)
         scaled_df.insert(0, "premature", y)
         scaled_df.insert(1, "rec_id", id)
-        
+
         return scaled_df
     
     def convert_tensor(self):

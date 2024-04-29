@@ -148,6 +148,22 @@ def kfold_mLSTM_objective(trial):
 
     return auc
 
+# def kfold_objective(trial, model_name, model_path, target_size, params_pre):
+#    params = {
+#         "batch_size": trial.suggest_int("batch_size", 2, 20),
+#         "learning_rate": trial.suggest_float( "learning_rate", 1e-5, 1e-1, log=True),
+#         "optimizer": trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"]),
+#         "epochs": trial.suggest_int("epochs", 20, 100),
+#         "lin_layers": trial.suggest_int("lin_layers", 1, 3),
+#         "hidden1": trial.suggest_int("hidden1", 4, 256),
+#         "hidden2": trial.suggest_int("hidden2", 4, 256),
+#         "loss_weight": trial.suggest_float("loss_weight", 1, 10)
+#     }
+
+#     auc = kfold_multichannel(model_name, model_path, target_size, params_fine = params, device = "cpu", params_pre=params_pre)
+
+#     return auc 
+
 def tune_all_source_data(source_data_directory):
     for folder_name in os.listdir(source_data_directory):
         folder_path = os.path.join(source_data_directory, folder_name)
@@ -172,21 +188,97 @@ def tune_all_source_data(source_data_directory):
                         for key, value in best_trial.params.items():
                             f.write("{}: {} ".format(key, value))
                         f.write(f"f1: {study.best_value}")
+                        
+# def kfold_objective(trial, model_name, model_path, target_size, params_pre):
+#    params = {
+#         "batch_size": trial.suggest_int("batch_size", 2, 20),
+#         "learning_rate": trial.suggest_float( "learning_rate", 1e-5, 1e-1, log=True),
+#         "optimizer": trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"]),
+#         "epochs": trial.suggest_int("epochs", 20, 100),
+#         "lin_layers": trial.suggest_int("lin_layers", 1, 3),
+#         "hidden1": trial.suggest_int("hidden1", 4, 256),
+#         "hidden2": trial.suggest_int("hidden2", 4, 256),
+#         "loss_weight": trial.suggest_float("loss_weight", 1, 10)
+#     }
+#     auc = kfold_multichannel(model_name, model_path, target_size, params_fine = params, device = "cpu", params_pre=params_pre)
+#     return auc 
 
-tune_all_source_data("../data/source_datasets")
-# study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler())
-# study.optimize(kfold_mLSTM_objective, n_trials=50)
+# def tune_all_target_data(model_name, pretrained_dir, source_data_dir):
+#     for trained_model in os.listdir(pretrained_dir):
+#         for source_data in os.listdir(source_data_dir):
+#             if os.path.isdir(source_data):  
+#                 folder_path = os.path.join(source_data_dir, source_data)
+#                 for file_name in os.listdir(source_data):
+#                     if file_name in trained_model:
+#                         source_dir = os.path.join(folder_path, file_name)
+#                         source_train, source_val, target_size = get_ucr_data(source_dir, 0.3, params_pre)
+#                         model_path = os.path.join(pretrained_dir, trained_model)
+        
+#                         study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler())
+#                         objective = partial(kfold_objective, model_name = model_name, model_path = model_path)
+#                         study.optimize(objective, n_trials=25)
 
-# best_trial = study.best_trial
+#                         best_trial = study.best_trial
 
-# now = datetime.now()
+#                         now = datetime.now()
 
-# dt_string = now.strftime("%d:%m:%Y_%H:%M:%S")
+#                         dt_string = now.strftime("%d:%m:%Y_%H:%M:%S")
 
-# file_name = "./hyperparameter_testing/parameter_testing_mLSTM_kfold_" + dt_string + ".txt"
-# with open(file_name, "w") as f:
-#     for key, value in best_trial.params.items():
-#         f.write("{}: {} ".format(key, value))
-#     f.write(f"auc: {study.best_value}")
+#                         file_name = "./hyperparameter_testing/cnn_source_data/parameter_testing_" + file_name + "_" + dt_string + ".txt"
+#                         with open(file_name, "w") as f:
+#                             for key, value in best_trial.params.items():
+#                                 f.write("{}: {} ".format(key, value))
+#                             f.write(f"f1: {study.best_value}")
+#         if os.path.isdir(folder_path):  
+#             for file_name in os.listdir(folder_path):
+#                 if file_name.endswith('.tsv') and 'TRAIN' in file_name:
+#                     print(f"Filename: {file_name}:")
+#                     file_path = os.path.join(folder_path, file_name)
+                    
+#                     study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler())
+#                     objective = partial(pretrain_cnn_objective, data_path = file_path)
+#                     study.optimize(objective, n_trials=25)
+
+#                     best_trial = study.best_trial
+
+#                     now = datetime.now()
+
+#                     dt_string = now.strftime("%d:%m:%Y_%H:%M:%S")
+
+#                     file_name = "./hyperparameter_testing/cnn_source_data/parameter_testing_" + file_name + "_" + dt_string + ".txt"
+#                     with open(file_name, "w") as f:
+#                         for key, value in best_trial.params.items():
+#                             f.write("{}: {} ".format(key, value))
+#                         f.write(f"f1: {study.best_value}")
+
+def finetune_cnn(trial):
+    params = {
+        "batch_size": trial.suggest_int("batch_size", 2, 20),
+        "learning_rate": trial.suggest_float( "learning_rate", 1e-5, 1e-1, log=True),
+        "optimizer": trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"]),
+        "epochs": trial.suggest_int("epochs", 20, 100),
+        "lin_layers": trial.suggest_int("lin_layers", 1, 3),
+        "hidden1": trial.suggest_int("hidden1", 4, 256),
+        "hidden2": trial.suggest_int("hidden2", 4, 256)
+    }
+    auc = kfold_multichannel("CNN", "./models/pretrained_cnns/ECG5000_TRAIN.tsv.pt", 42, params_fine = params, device = "cpu", params_pre=None)
+    
+    return auc 
+
+# tune_all_source_data("../data/source_datasets")
+study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler())
+study.optimize(finetune_cnn, n_trials=25)
+
+best_trial = study.best_trial
+
+now = datetime.now()
+
+dt_string = now.strftime("%d:%m:%Y_%H:%M:%S")
+
+file_name = "./hyperparameter_testing/cnn_kfold/parameter_testing_CNN_kfold_ECG5000_" + dt_string + ".txt"
+with open(file_name, "w") as f:
+    for key, value in best_trial.params.items():
+        f.write("{}: {} ".format(key, value))
+    f.write(f"auc: {study.best_value}")
     
 

@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, ConcatDataset, SubsetRandomSampler
 import torch
 import torch.optim as optim
 import torch.nn as nn
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 from tqdm import tqdm
 import numpy as np
 
@@ -19,6 +19,12 @@ def loop_source_data():
 
 def split_features(params, val_split = True):
     data = pd.read_csv("./data/train_test_data/trainval.csv", index_col=0)
+    
+    if not val_split:
+        dataset = PrematureDatasetSplit(data)
+        
+        return dataset
+    
     train, val = get_train_val(data)  
     
     dataset = PrematureDatasetSplit(train)
@@ -26,11 +32,6 @@ def split_features(params, val_split = True):
     
     valset = PrematureDatasetSplit(val)
     valloader = DataLoader(valset, batch_size = int(params["batch_size"]), shuffle = True)
-    
-    if not val_split:
-        dataset = ConcatDataset([dataset, valset])
-        
-        return dataset
     
     return dataloader, valloader
 
@@ -40,7 +41,7 @@ def train_epoch(model, train_loader, criterion, optimizer, device):
     for (x1, x2, x3), labels in train_loader:
         model.zero_grad()
 
-        output = model(x1.to(torch.float32).unsqueeze(-1).to(device), x2.to(torch.float32).unsqueeze(-1).to(device), x3.to(torch.float32).unsqueeze(-1).to(device))
+        output = model(x1.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1), x2.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1), x3.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1))
             
         label_correct = labels.unsqueeze(-1).to(torch.float32).to(device)
 
@@ -59,7 +60,7 @@ def valid_epoch(model, val_loader, criterion, device):
     
     with torch.no_grad():
         for (x1, x2, x3), labels in val_loader:
-            output = model(x1.to(torch.float32).unsqueeze(-1).to(device), x2.to(torch.float32).unsqueeze(-1).to(device), x3.to(torch.float32).unsqueeze(-1).to(device))
+            output = model(x1.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1), x2.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1), x3.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1))
             
             label_correct = labels.unsqueeze(-1).to(torch.float32).to(device)
 
@@ -113,42 +114,28 @@ def multichannel_finetune(model_name, source_path, params_fine = None, params_pr
             
     return train_loss_list, val_loss_list, val, multimodel
 
-def kfold_multichannel(params_fine = None, params_pre = None, device = "cpu"):
-
-    if params_pre is None:
-        params_pre = get_parameters("./hyperparameter_testing/parameter_testing_pretrain_05:04:2024_21:52:26.txt")
-        
-    source_train, source_val, target_size = get_ucr_data("/Users/yarianrango/Documents/School/Master-AI-VU/Thesis/data/UCRArchive_2018/ECG5000/ECG5000_TRAIN.tsv", 0.3, params_pre)
-    # train_loss, val_loss, val, model = pretrain(source_train, source_val, target_size, params_pre, device)
-    model = load_pretrained_lstm("./models/pretrained", params_pre, target_size, input_dim = 1, device = device)
-    
-    # Freeze LSTM layers and remove final linear layer
-    for param in model.parameters():
-        param.requires_grad = False
-        
-    model._modules["lin1"] = Identity()
+def kfold_multichannel(model_name, model_path, target_size, params_fine = None, params_pre = None, device = "cpu"):
+     
+    # Get multichannel model    
+    model = get_multichannelmodel(model_name, model_path, params_fine,target_size, device, params_pre)
     
     # Get dataloader
     dataset = split_features(params_fine, val_split=False)
     
     # Init Kfold 
     k=5
-    splits=KFold(n_splits=k,shuffle=True,random_state=42)
-    
-    # Init multichannel model
-    mLSTM = multichannelLSTM(model, params_fine, hidden_dim=params_pre["hidden_dim"])
-    mLSTM.to(device)
-    
+    splits=StratifiedKFold(n_splits=k,shuffle=True,random_state=42)
+
     # Get loss function and optimizer
-    pos_weight = torch.tensor([params_fine["loss_weight"]]).to(device)
+    pos_weight = torch.tensor([8.7]).to(device)
     loss_function = nn.BCEWithLogitsLoss(pos_weight)
     
-    optimizer = getattr(optim, params_fine['optimizer'])(mLSTM.parameters(), lr= params_fine['learning_rate'])
-    scheduler = optim.lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.001, total_iters=round(int(params_fine["epochs"])*0.8))
+    optimizer = getattr(optim, params_fine['optimizer'])(model.parameters(), lr= params_fine['learning_rate'])
+    # scheduler = optim.lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.001, total_iters=round(int(params_fine["epochs"])*0.8))
  
     tot_auc = 0
     
-    for fold, (train_idx,val_idx) in enumerate(splits.split(np.arange(len(dataset)))):
+    for fold, (train_idx,val_idx) in enumerate(splits.split(dataset.X, dataset.y)):
         val_loss_list = []
         train_loss = []
         print('Fold {}'.format(fold + 1))
@@ -163,31 +150,30 @@ def kfold_multichannel(params_fine = None, params_pre = None, device = "cpu"):
         val_loss_list = []
         
         for epoch in tqdm(range(int(params_fine["epochs"]))):
-            mLSTM.train()
-            train_loss = train_epoch(mLSTM, train_loader, loss_function, optimizer, device)
+            model.train()
+            train_loss = train_epoch(model, train_loader, loss_function, optimizer, device)
             train_loss_list.append(train_loss)
             
-            scheduler.step()
+            # scheduler.step()
         
             # Evaluate in between epochs
             model.eval()
-            val_loss = valid_epoch(mLSTM, val_loader, loss_function, device)
+            val_loss = valid_epoch(model, val_loader, loss_function, device)
             val_loss_list.append(val_loss)
             
-        auc = evaluate_model_split(train_loss_list, val_loss_list, val_loader, mLSTM, device = "cpu")
+        auc = evaluate_model_split(train_loss_list, val_loss_list, val_loader, model, device = "cpu")
         print(f"AUC of {auc} for fold {fold+1}")
         tot_auc += auc
     avg_auc = tot_auc/k
     
     return avg_auc
 
-def get_multichannelmodel(model, params_pre, params_fine, target_size, device):
-    if model == "LSTM":
-        params_pre = get_parameters(params_pre)
-        model = load_pretrained_lstm("./models/pretrained", params_pre, target_size, input_dim = 1, device = device)
+def get_multichannelmodel(model_name, model_path, params_fine, target_size, device, params_pre = None):
+    if model_name == "LSTM":
+        model = load_pretrained_lstm(model_path, params_pre, target_size, input_dim = 1, device = device)
         hidden_dim = params_pre["hidden_dim"]
-    elif model == "CNN":
-        model = load_pretrained_cnn("./models/pretrained_cnn", target_size, device)
+    elif model_name == "CNN":
+        model = load_pretrained_cnn(model_path, target_size, device)
         hidden_dim = 128
         
     for param in model.parameters():
@@ -207,7 +193,7 @@ def load_pretrained_lstm(path, params, target_size, input_dim = 1, device = "cpu
     return model
 
 def load_pretrained_cnn(path, target_size, device = "cpu"):
-    model = CNN(target_size, device)
+    model = CNN(target_size)
     model.load_state_dict(torch.load(path))
     
     return model
@@ -216,5 +202,5 @@ def load_pretrained_cnn(path, target_size, device = "cpu"):
 # train_loss, val_loss_list, val, mLSTM = multichannel_finetune(params_fine=params_fine)
 
 # evaluate_model_split(train_loss, val_loss_list, val, mLSTM, plot = True)
-    
-    
+
+# load_pretrained_cnn("/Users/yarianrango/Documents/School/Master-AI-VU/Thesis/TL_pretermbirth/models/pretrained_cnns/NonInvasiveFetalECGThorax2_TRAIN.pt", target_size=42)

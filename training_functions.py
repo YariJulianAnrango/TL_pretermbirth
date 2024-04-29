@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 import torch.optim.lr_scheduler as lr_scheduler
 
 from tqdm import tqdm
+import os
 
 from model import LSTM, CNN
 from preprocessing import UCRDataset, PrematureDataset, train_val_split
@@ -160,7 +161,7 @@ def pretrain(model, train, val, target_size, params, device, binary_classes = Fa
         
     return train_loss, val_loss_list, val, model
 
-def finetune(train, val, model, params):
+def finetune(train, val, model, params, device):
     
     # Replace last layer with new layer
     for param in model.parameters():
@@ -171,10 +172,9 @@ def finetune(train, val, model, params):
     # Train on pretrained model
     pos_weight = torch.tensor([5.5])
     loss_function = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    device = "cpu"
     
     optimizer = getattr(optim, params['optimizer_fine'])(model.parameters(), lr= params['learning_rate_fine'])
-    scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.001, total_iters=round(int(params["epochs_fine"])*0.8))
+    # scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.001, total_iters=round(int(params["epochs_fine"])*0.8))
 
     train_loss = []
     val_loss_list = []
@@ -204,7 +204,7 @@ def finetune(train, val, model, params):
         avg_loss = total_loss/len(train)
         train_loss.append(avg_loss)
         
-        scheduler.step()
+        # scheduler.step()
         
         model.eval()
         with torch.no_grad():
@@ -280,6 +280,33 @@ def overfit(params, train):
         print("Epoch %d: Adam lr %.4f -> %.4f" % (epoch, before_lr, after_lr))
     return train_loss, val_loss_list, model
 
+def train_best_cnn(data_dir, params_dir, device = "cpu"):
+    for folder_name in os.listdir(data_dir):
+        folder_path = os.path.join(data_dir, folder_name)
+        if os.path.isdir(folder_path):  
+            for file_name in os.listdir(folder_path):
+                if file_name.endswith('.tsv') and 'TRAIN' in file_name:
+                    print(f"Filename: {file_name}:")
+                    file_path = os.path.join(folder_path, file_name)
+                    
+                    for params_name in os.listdir(params_dir):
+                        if file_name in params_name:
+                            print(f"Params: {params_name}")
+                            params_path = os.path.join(params_dir, params_name)
+                            params = get_parameters(params_path)
+                            source_train, source_val, target_size = get_ucr_data(file_path, 0.3, params)
+                            if target_size == 2:
+                                target_size = 1  
+                                model = CNN(target_size)
+                                train_loss, val_loss, val, model = pretrain(model, source_train, source_val, target_size, params, device, binary_classes=True)
+        
+                            else:
+                                model = CNN(target_size)
+                                train_loss, val_loss, val, model = pretrain(model, source_train, source_val, target_size, params, device)
+                            model_path = f"./models/pretrained_cnns/{file_name}.pt"
+                            torch.save(model.state_dict(), model_path)
+                            
+# train_best_cnn(data_dir="../data/source_datasets/", params_dir="./hyperparameter_testing/cnn_source_data/")
 # params_pre = get_parameters("./hyperparameter_testing/parameter_testing_pretrain_05:04:2024_21:52:26.txt")
 # params_pre["epochs"] = 40
 

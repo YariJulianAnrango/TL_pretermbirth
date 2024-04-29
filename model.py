@@ -42,18 +42,18 @@ class FCN(nn.Module):
         super(FCN, self).__init__()
         if parameters["lin_layers"] == 1:
             self.m = nn.Sequential(
-                nn.Linear(int(hidden_dim*2*3), 1)
+                nn.Linear(int(hidden_dim*3), 1)
             )
         elif parameters["lin_layers"] == 2:
             self.m = nn.Sequential(
-                nn.Linear(int(hidden_dim*2*3), int(parameters["hidden1"])),
+                nn.Linear(int(hidden_dim*3), int(parameters["hidden1"])),
                 nn.ReLU(),
                 nn.Linear(int(parameters["hidden1"]), 1)
             )
             
         elif parameters["lin_layers"] == 3:
             self.m = nn.Sequential(
-                nn.Linear(int(hidden_dim*2*3), int(parameters["hidden1"])),
+                nn.Linear(int(hidden_dim*3), int(parameters["hidden1"])),
                 nn.ReLU(),
                 nn.Linear(int(parameters["hidden1"]), int(parameters["hidden2"])),
                 nn.ReLU(),
@@ -78,9 +78,9 @@ class MultiChannelModel(nn.Module):
         x2_out = self.model(x2).unsqueeze(2)
         
         x_cat = torch.cat((x0_out, x1_out, x2_out), 2)
-        
+   
         x_flat = self.flatten(x_cat)
-
+ 
         y = self.FCN(x_flat.float())
         return y
 

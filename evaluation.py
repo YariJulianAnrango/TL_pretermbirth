@@ -103,7 +103,7 @@ def evaluate_model_split(train_loss, val_loss, val, model, device = "cpu", plot 
     sig = nn.Sigmoid()
     with torch.no_grad():
         for (x1, x2, x3), label in val:
-            output = model(x1.to(torch.float32).unsqueeze(-1).to(device), x2.to(torch.float32).unsqueeze(-1).to(device), x3.to(torch.float32).unsqueeze(-1).to(device))
+            output = model(x1.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1), x2.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1), x3.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1))
 
             pred = sig(output).round().int()
 
