@@ -261,7 +261,7 @@ def finetune_cnn(trial):
         "hidden1": trial.suggest_int("hidden1", 4, 256),
         "hidden2": trial.suggest_int("hidden2", 4, 256)
     }
-    auc = kfold_multichannel("CNN", "./models/pretrained_cnns/ECG5000_TRAIN.tsv.pt", 42, params_fine = params, device = "cpu", params_pre=None)
+    auc = kfold_multichannel("CNN", "./models/pretrained_cnns/ECGFiveDays_TRAIN.tsv.pt", 1, params_fine = params, device = "cpu", params_pre=None)
     
     return auc 
 
@@ -275,7 +275,7 @@ now = datetime.now()
 
 dt_string = now.strftime("%d:%m:%Y_%H:%M:%S")
 
-file_name = "./hyperparameter_testing/cnn_kfold/parameter_testing_CNN_kfold_ECG5000_" + dt_string + ".txt"
+file_name = "./hyperparameter_testing/cnn_kfold/parameter_testing_CNN_kfold_ECGFiveDays_" + dt_string + ".txt"
 with open(file_name, "w") as f:
     for key, value in best_trial.params.items():
         f.write("{}: {} ".format(key, value))

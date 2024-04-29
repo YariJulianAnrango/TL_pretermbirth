@@ -155,8 +155,9 @@ class PrematureDatasetSplit(Dataset):
         return len(self.y)
 
     def __getitem__(self, idx):
-        X = self.X[idx]
-        return (X[:,0], X[:, 1], X[:, 2]), self.y[idx]
+        X = self.X[idx].permute(1,0).to(torch.float32)
+        # (X[:,0], X[:, 1], X[:, 2])
+        return X, self.y[idx]
     
     def normalize(self, data):
         y = data.loc[:,"premature"]

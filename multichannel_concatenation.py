@@ -37,11 +37,11 @@ def split_features(params, val_split = True):
 
 def train_epoch(model, train_loader, criterion, optimizer, device):
     total_loss = 0.0
-    
-    for (x1, x2, x3), labels in train_loader:
-        model.zero_grad()
 
-        output = model(x1.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1), x2.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1), x3.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1))
+    for x, labels in train_loader:
+        model.zero_grad()
+        
+        output = model(x)
             
         label_correct = labels.unsqueeze(-1).to(torch.float32).to(device)
 
@@ -59,8 +59,8 @@ def valid_epoch(model, val_loader, criterion, device):
     val_loss = 0
     
     with torch.no_grad():
-        for (x1, x2, x3), labels in val_loader:
-            output = model(x1.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1), x2.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1), x3.to(torch.float32).unsqueeze(-1).to(device).permute(0,2,1))
+        for x, labels in val_loader:
+            output = model(x)
             
             label_correct = labels.unsqueeze(-1).to(torch.float32).to(device)
 
@@ -117,6 +117,9 @@ def multichannel_finetune(model_name, source_path, params_fine = None, params_pr
 def kfold_multichannel(model_name, model_path, target_size, params_fine = None, params_pre = None, device = "cpu"):
      
     # Get multichannel model    
+    if target_size == 2:
+        target_size = 1
+        
     model = get_multichannelmodel(model_name, model_path, params_fine,target_size, device, params_pre)
     
     # Get dataloader
@@ -197,6 +200,16 @@ def load_pretrained_cnn(path, target_size, device = "cpu"):
     model.load_state_dict(torch.load(path))
     
     return model
+# params = {
+#         "batch_size": 10,
+#         "learning_rate": 0.01,
+#         "optimizer": "Adam",
+#         "epochs": 1,
+#         "lin_layers": 2,
+#         "hidden1": 4,
+#         "hidden2": 4
+#     }
+# auc = kfold_multichannel("CNN", "./models/pretrained_cnns/ECG5000_TRAIN.tsv.pt", 5, params_fine = params, device = "cpu", params_pre=None)
 # params_fine = get_parameters("./hyperparameter_testing/parameter_testing_mLSTM_kfold_09:04:2024_22:12:09.txt")
 
 # train_loss, val_loss_list, val, mLSTM = multichannel_finetune(params_fine=params_fine)

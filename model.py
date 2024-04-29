@@ -71,16 +71,20 @@ class MultiChannelModel(nn.Module):
         self.model = model
         self.FCN = FCN(parameters, hidden_dim)
         self.flatten = nn.Flatten()
+        self.batch = nn.BatchNorm1d(3)
         
-    def forward(self, x0, x1, x2):
-        x0_out = self.model(x0).unsqueeze(2)
-        x1_out = self.model(x1).unsqueeze(2)
-        x2_out = self.model(x2).unsqueeze(2)
+    def forward(self, x):
+        self.batch(x)
         
-        x_cat = torch.cat((x0_out, x1_out, x2_out), 2)
+        x0, x1, x2 = x[:, 0, :], x[:, 1, :], x[:, 2, :]
+        
+        x0_out = self.model(x0.unsqueeze(1))
+        x1_out = self.model(x1.unsqueeze(1))
+        x2_out = self.model(x2.unsqueeze(1))
+        
+        x_cat = torch.cat((x0_out.unsqueeze(2), x1_out.unsqueeze(2), x2_out.unsqueeze(2)), 2)
    
         x_flat = self.flatten(x_cat)
- 
         y = self.FCN(x_flat.float())
         return y
 
