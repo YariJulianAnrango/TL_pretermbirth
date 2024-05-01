@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, SubsetRandomSampler
 import torch.optim.lr_scheduler as lr_scheduler
 
 from tqdm import tqdm
@@ -9,6 +9,8 @@ import os
 
 from model import LSTM, CNN
 from preprocessing import UCRDataset, PrematureDataset, train_val_split
+from sklearn.model_selection import StratifiedKFold
+from evaluation import evaluate_model
 
 
 def get_ucr_data(data_dir, test_size, params):
@@ -305,7 +307,98 @@ def train_best_cnn(data_dir, params_dir, device = "cpu"):
                                 train_loss, val_loss, val, model = pretrain(model, source_train, source_val, target_size, params, device)
                             model_path = f"./models/pretrained_cnns/{file_name}.pt"
                             torch.save(model.state_dict(), model_path)
-                            
+  
+def kfold_sDNN(model_name, target_size, params_fine, device = "cpu"):
+    if target_size == 2:
+        target_size = 1
+    
+    if model_name == "CNN":
+        model = CNN(target_size, input_dim=3)
+    
+    dataset = PrematureDataset("./data/train_test_data/trainval.csv", n_components=3)
+    
+    k=5
+    splits=StratifiedKFold(n_splits=k,shuffle=True,random_state=42)
+
+    # Get loss function and optimizer
+    pos_weight = torch.tensor([8.7]).to(device) # based on ratio of data class imbalance
+    loss_function = nn.BCEWithLogitsLoss(pos_weight)
+    
+    optimizer = getattr(optim, params_fine['optimizer'])(model.parameters(), lr= params_fine['learning_rate'])
+    
+    tot_auc = 0
+    
+    for fold, (train_idx,val_idx) in enumerate(splits.split(dataset.X, dataset.y)):
+        val_loss_list = []
+        train_loss = []
+        print('Fold {}'.format(fold + 1))
+        
+        train_sampler = SubsetRandomSampler(train_idx)
+        val_sampler = SubsetRandomSampler(val_idx)
+        train_loader = DataLoader(dataset, batch_size=params_fine["batch_size"], sampler=train_sampler)
+        val_loader = DataLoader(dataset, batch_size=params_fine["batch_size"], sampler=val_sampler)
+        
+        # Training loop
+        train_loss_list = []
+        val_loss_list = []
+        
+        for epoch in tqdm(range(int(params_fine["epochs"]))):
+            model.train()
+            train_loss = train_epoch(model, train_loader, loss_function, optimizer, device)
+            train_loss_list.append(train_loss)
+            
+            # scheduler.step()
+        
+            # Evaluate in between epochs
+            model.eval()
+            val_loss = valid_epoch(model, val_loader, loss_function, device)
+            val_loss_list.append(val_loss)
+            
+        auc = evaluate_model(train_loss_list, val_loss_list, val_loader, model)
+        print(f"AUC of {auc} for fold {fold+1}")
+        tot_auc += auc
+    avg_auc = tot_auc/k
+    
+    return avg_auc   
+
+
+
+def train_epoch(model, train_loader, criterion, optimizer, device):
+    total_loss = 0.0
+
+    for x, labels in train_loader:
+        model.zero_grad()
+        
+        output = model(x)
+            
+        label_correct = labels.unsqueeze(-1).to(torch.float32).to(device)
+
+        loss = criterion(output, label_correct)
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+            
+    avg_loss = total_loss/len(train_loader)
+    
+    return avg_loss
+
+def valid_epoch(model, val_loader, criterion, device):
+    val_loss = 0
+    
+    with torch.no_grad():
+        for x, labels in val_loader:
+            output = model(x)
+            
+            label_correct = labels.unsqueeze(-1).to(torch.float32).to(device)
+
+            vloss = criterion(output, label_correct)
+        
+            val_loss += vloss.item()
+        avg_val_loss = val_loss/len(val_loader)
+        
+    return avg_val_loss
+                
 # train_best_cnn(data_dir="../data/source_datasets/", params_dir="./hyperparameter_testing/cnn_source_data/")
 # params_pre = get_parameters("./hyperparameter_testing/parameter_testing_pretrain_05:04:2024_21:52:26.txt")
 # params_pre["epochs"] = 40

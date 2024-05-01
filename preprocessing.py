@@ -7,7 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from train_test_split import random_split
 
 class PrematureDataset(Dataset):
-    def __init__(self, csv_path, n_components, feature_index):
+    def __init__(self, csv_path, n_components):
         data = pd.read_csv(csv_path, index_col = 0)
         self.ehg_sequence = self.normalize(data)
         if n_components < 3:
@@ -19,7 +19,8 @@ class PrematureDataset(Dataset):
         return len(self.y)
 
     def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
+        X = self.X[idx].permute(1,0).to(torch.float32)
+        return X, self.y[idx]
     
     def apply_pca(self, n_components):
         pca = PCA(n_components = n_components)

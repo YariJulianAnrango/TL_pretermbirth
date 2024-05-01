@@ -2,6 +2,7 @@ from training_functions import (
     pretrain,
     get_ucr_data,
     perform_transfer_learning,
+    kfold_sDNN
 )
 from evaluation import evaluate_model, evaluate_multiclass, evaluate_model_split
 from multichannel_concatenation import multichannel_finetune, kfold_multichannel, load_pretrained_lstm
@@ -261,13 +262,24 @@ def finetune_cnn(trial):
         "hidden1": trial.suggest_int("hidden1", 4, 256),
         "hidden2": trial.suggest_int("hidden2", 4, 256)
     }
-    auc = kfold_multichannel("CNN", "./models/pretrained_cnns/ECGFiveDays_TRAIN.tsv.pt", 1, params_fine = params, device = "cpu", params_pre=None)
+    auc = kfold_multichannel("CNN", "./models/pretrained_cnns/TwoLeadECG_TRAIN.tsv.pt", 2, params_fine = params, device = "cpu", params_pre=None)
+    
+    return auc 
+
+def finetune_sDNN(trial):
+    params = {
+        "batch_size": trial.suggest_int("batch_size", 2, 20),
+        "learning_rate": trial.suggest_float( "learning_rate", 1e-5, 1e-1, log=True),
+        "optimizer": trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"]),
+        "epochs": trial.suggest_int("epochs", 20, 100)
+    }
+    auc = kfold_sDNN("CNN", 2, params_fine = params, device = "cpu")
     
     return auc 
 
 # tune_all_source_data("../data/source_datasets")
 study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler())
-study.optimize(finetune_cnn, n_trials=25)
+study.optimize(finetune_sDNN, n_trials=25)
 
 best_trial = study.best_trial
 
@@ -275,7 +287,7 @@ now = datetime.now()
 
 dt_string = now.strftime("%d:%m:%Y_%H:%M:%S")
 
-file_name = "./hyperparameter_testing/cnn_kfold/parameter_testing_CNN_kfold_ECGFiveDays_" + dt_string + ".txt"
+file_name = "./hyperparameter_testing/cnn_kfold/parameter_testing_CNN_kfold_" + dt_string + ".txt"
 with open(file_name, "w") as f:
     for key, value in best_trial.params.items():
         f.write("{}: {} ".format(key, value))

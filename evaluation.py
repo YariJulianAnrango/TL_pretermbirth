@@ -21,9 +21,9 @@ def evaluate_model(train_loss, val_loss, val, model, return_f1 = False, device =
 
     sig = nn.Sigmoid()
     for sequence, label in val:
-        sequence_shaped = sequence.unsqueeze(-1).float().to(device).permute(0,2,1)
+        # sequence_shaped = sequence.unsqueeze(-1).float().to(device).permute(0,2,1)
     
-        logits_output = model(sequence_shaped)
+        logits_output = model(sequence)
 
         pred = sig(logits_output).round().int()
 
